@@ -1,5 +1,6 @@
 use clap::Parser;
-use log::info;
+use lambdo::config::LambdoConfig;
+use log::{debug, info, trace};
 
 #[derive(Parser)]
 #[clap(
@@ -7,13 +8,24 @@ use log::info;
     author = "Polytech Montpellier - DevOps",
     about = "A Serverless runtime in Rust"
 )]
-pub struct LambdoOpts {}
+pub struct LambdoOpts {
+    /// Config file path
+    #[clap(short, long, default_value = "/etc/lambdo/config.yaml")]
+    config: String,
+}
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     env_logger::init();
-    LambdoOpts::parse();
+    let options = LambdoOpts::parse();
 
-    info!("starting up");
+    info!("starting up ...");
+
+    debug!("loading config file at {}", options.config);
+    let config = LambdoConfig::load(options.config.as_str())?;
+    trace!(
+        "config file loaded successfully with content: {:#?}",
+        config
+    );
 
     // todo: do something
 
