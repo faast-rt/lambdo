@@ -1,0 +1,3 @@
+[submodule "lumper"]
+	path = lumper
+	url = git@github.com:virt-do/lumper.git
