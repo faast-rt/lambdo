@@ -1,5 +1,5 @@
-use log::{error, info};
 use anyhow::{anyhow, Result};
+use log::{error, info};
 
 pub struct ExternalApi {
     serial_read_path: String,
@@ -59,7 +59,17 @@ impl ExternalApi {
 
         info!("Final received data: {:?}", data);
 
-        serial.flush().map_err(|e| anyhow!("Failed to flush serial port: {}", e))?;
+        // Parse the data as a json object
+        let json: serde_json::Value = serde_json::from_slice(&data)
+            .map_err(|e| anyhow!("Failed to serialize json: {}", e))?;
+
+        info!("Final received json: {:?}", json);
+
+        // Flush the serial port
+        serial
+            .flush()
+            .map_err(|e| anyhow!("Failed to flush serial port: {}", e))?;
+
         Ok(())
     }
 
@@ -73,10 +83,14 @@ impl ExternalApi {
         let buf = data.as_bytes();
 
         // Write the byte array to the serial port
-        serial.write_all(buf).map_err(|e| anyhow!("Failed to write to serial port: {}", e))?;
+        serial
+            .write_all(buf)
+            .map_err(|e| anyhow!("Failed to write to serial port: {}", e))?;
 
         // Flush the serial port
-        serial.flush().map_err(|e| anyhow!("Failed to flush serial port: {}", e))?;
+        serial
+            .flush()
+            .map_err(|e| anyhow!("Failed to flush serial port: {}", e))?;
         Ok(())
     }
 }

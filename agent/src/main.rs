@@ -1,8 +1,7 @@
 use agent_lib::external_api::ExternalApi;
+use anyhow::Result;
 use env_logger;
 use log::info;
-use std::error::Error;
-use anyhow::Result;
 
 fn main() -> Result<()> {
     env_logger::init();
