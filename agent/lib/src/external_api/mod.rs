@@ -1,4 +1,4 @@
-use serialport::{Error, SerialPort};
+use log::{error, info};
 
 pub struct ExternalApi {
     serial_read_path: String,
@@ -16,6 +16,8 @@ impl ExternalApi {
     }
 
     pub fn read_from_serial(&mut self) {
+        info!("Reading from serial port: {}", self.serial_read_path);
+
         // Open the serial port
         let mut serial = serialport::new(&self.serial_read_path, self.serial_baud_rate)
             .open()
@@ -30,7 +32,7 @@ impl ExternalApi {
             match serial.read(&mut buf) {
                 Ok(t) => {
                     if t > 0 {
-                        println!("Buf {:?}", &buf[..t]);
+                        info!("Buffer received {:?}", &buf[..t]);
 
                         // find char 1c (record separator) in the buffer
                         if let Some(i) = buf.iter().position(|&r| r == 0x1c) {
@@ -40,6 +42,8 @@ impl ExternalApi {
                             // Add the data to the data vector
                             data.extend_from_slice(data_to_add);
 
+                            info!("Delimiter found at index: {}", i);
+
                             break;
                         } else {
                             // Add the data to the data vector
@@ -48,19 +52,18 @@ impl ExternalApi {
                     }
                 }
                 Err(ref e) if e.kind() == std::io::ErrorKind::TimedOut => (),
-                Err(e) => eprintln!("{:?}", e),
+                Err(e) => error!("{:?}", e),
             }
         }
 
-        // Print the data
-        println!("Data vector: {:?}", data);
+        info!("Final received data: {:?}", data);
 
         serial.flush().unwrap();
     }
 
-    pub fn write_to_serial(data: &str) {
+    pub fn write_to_serial(&mut self, data: &str) {
         // Open the serial port
-        let mut serial = serialport::new(self.serial_write_path, self.serial_baud_rate)
+        let mut serial = serialport::new(&self.serial_write_path, self.serial_baud_rate)
             .open()
             .unwrap();
 
