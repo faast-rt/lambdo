@@ -1,3 +1,4 @@
+use anyhow::{anyhow, Result};
 use log::{error, info};
 
 pub struct ExternalApi {
@@ -15,13 +16,13 @@ impl ExternalApi {
         }
     }
 
-    pub fn read_from_serial(&mut self) {
+    pub fn read_from_serial(&mut self) -> Result<()> {
         info!("Reading from serial port: {}", self.serial_read_path);
 
         // Open the serial port
         let mut serial = serialport::new(&self.serial_read_path, self.serial_baud_rate)
             .open()
-            .unwrap();
+            .map_err(|e| anyhow!("Failed to open serial port: {}", e))?;
 
         // Create a vector to hold the data
         let mut data: Vec<u8> = Vec::new();
@@ -58,22 +59,38 @@ impl ExternalApi {
 
         info!("Final received data: {:?}", data);
 
-        serial.flush().unwrap();
+        // Parse the data as a json object
+        let json: serde_json::Value = serde_json::from_slice(&data)
+            .map_err(|e| anyhow!("Failed to serialize json: {}", e))?;
+
+        info!("Final received json: {:?}", json);
+
+        // Flush the serial port
+        serial
+            .flush()
+            .map_err(|e| anyhow!("Failed to flush serial port: {}", e))?;
+
+        Ok(())
     }
 
-    pub fn write_to_serial(&mut self, data: &str) {
+    pub fn write_to_serial(&mut self, data: &str) -> Result<()> {
         // Open the serial port
         let mut serial = serialport::new(&self.serial_write_path, self.serial_baud_rate)
             .open()
-            .unwrap();
+            .map_err(|e| anyhow!("Failed to open serial port: {}", e))?;
 
         // Conver the string to a byte array
         let buf = data.as_bytes();
 
         // Write the byte array to the serial port
-        serial.write_all(buf).unwrap();
+        serial
+            .write_all(buf)
+            .map_err(|e| anyhow!("Failed to write to serial port: {}", e))?;
 
         // Flush the serial port
-        serial.flush().unwrap();
+        serial
+            .flush()
+            .map_err(|e| anyhow!("Failed to flush serial port: {}", e))?;
+        Ok(())
     }
 }
