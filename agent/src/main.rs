@@ -1,6 +1,6 @@
-use agent_lib::external_api::ExternalApi;
+use agent_lib::{external_api::service::ExternalApi, internal_api::service::InternalApi};
 use anyhow::Result;
-use env_logger;
+
 use log::info;
 
 fn main() -> Result<()> {
@@ -8,9 +8,11 @@ fn main() -> Result<()> {
     info!("Starting agent");
 
     let mut external_api =
-        ExternalApi::new("/dev/pts/4".to_string(), "/dev/pts/5".to_string(), 9600);
+        ExternalApi::new("/dev/pts/5".to_string(), "/dev/pts/6".to_string(), 9600);
 
-    external_api.read_from_serial()?;
+    let code_entry = external_api.read_from_serial()?;
+    let mut internal_api = InternalApi::new(code_entry);
+    internal_api.create_workspace()?;
 
     info!("Stopping agent");
     Ok(())

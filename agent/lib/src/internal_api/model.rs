@@ -1,5 +1,25 @@
+use std::path::PathBuf;
+
 use serde::{Deserialize, Serialize};
 use unshare;
+
+#[derive(Deserialize, Serialize, Debug)]
+pub struct FileModel {
+    pub path: PathBuf,
+    pub file_name: String,
+    pub content: String,
+
+}
+
+impl FileModel {
+    pub fn new(path: PathBuf, file_name: String, content: String) -> Self {
+        Self {
+            path,
+            file_name,
+            content,
+        }
+    }
+}
 
 #[derive(Deserialize, Serialize, Debug)]
 pub struct CodeReturn {
