@@ -9,5 +9,5 @@ pub struct FileModel {
 #[derive(Deserialize, Serialize, Debug)]
 pub struct CodeEntry {
     pub files: Vec<FileModel>,
-    pub script: Vec<String>,
+    pub script: Vec<String>, // All commands to execute at startup
 }

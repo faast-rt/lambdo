@@ -1,7 +1,6 @@
 use std::path::PathBuf;
 
 use serde::{Deserialize, Serialize};
-use unshare;
 
 #[derive(Deserialize, Serialize, Debug)]
 pub struct FileModel {
@@ -39,9 +38,10 @@ impl CodeReturn {
 
 #[derive(Debug)]
 pub enum InternalError {
-    CmdSpawn(unshare::Error),
+    CmdSpawn,
     ChildWait(std::io::Error),
     ChildExitError(i32),
     InvalidExitCode,
     StdoutRead,
+    StderrRead,
 }

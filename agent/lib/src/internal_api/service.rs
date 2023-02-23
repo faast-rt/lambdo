@@ -1,14 +1,9 @@
-use super::model::{CodeReturn, InternalError};
-use crate::{external_api::model::CodeEntry, internal_api::model::FileModel};
+use std::{process::Command, fs::File, path::{PathBuf, Path}};
 use anyhow::{anyhow, Result};
 use log::{error, info};
+use crate::{external_api::model::CodeEntry, internal_api::model::FileModel};
 use std::io::Write;
-use std::{
-    fs::File,
-    io::{BufReader, Read},
-    path::{Path, PathBuf},
-};
-use unshare::Command;
+use super::model::{CodeReturn, InternalError};
 
 const WORKSPACE_PATH: &str = "/tmp";
 
@@ -104,34 +99,106 @@ impl InternalApi {
     }
 
     pub fn run(&mut self) -> Result<CodeReturn, InternalError> {
-        let code = Command::new("/bin/sh")
-            .args(&["-c", "echo", "'Hello world'"])
-            .spawn()
-            .map_err(InternalError::CmdSpawn)?
-            .stdout;
+        info!("Running code");
+        
+        // Running the latest command in vector for now
+        
+        let child_process = Command::new("/bin/sh")
+            .args(["-c", 
+                self.code_entry.script.last().ok_or(
+                    InternalError::CmdSpawn
+                )?.as_str()
+            ])
+            .current_dir(WORKSPACE_PATH)
+            .output()
+            .map_err(|_|InternalError::CmdSpawn)?;
 
-        // .wait().map_err(InternalError::ChildWait)?.fmt(f)
-        // .wait()
-        // .map_err(InternalError::ChildWait)?
-        // .code();
+        info!("Code execution finished, gathering outputs and exit code");
 
-        if let Some(code) = code {
-            // if code != 0 {
-            //     return Err(InternalError::ChildExitError(code));
-            // }
-            let mut stdout_reader = BufReader::new(code);
-            let mut stdout_output = String::new();
-            println!("Internal API: Reading stdout");
-            stdout_reader
-                .read_to_string(&mut stdout_output)
-                .map_err(|_| InternalError::StdoutRead)?;
-            // println!("{}", stdout_output);
-            let result = CodeReturn::new(stdout_output, "stderr".to_string(), 0);
+        let exit_code = child_process.status.code().ok_or(
+            InternalError::InvalidExitCode
+        )?;
+        let stdout = String::from_utf8(child_process.stdout).map_err(
+            |_| InternalError::StdoutRead
+        )?;
+        let stderr = String::from_utf8(child_process.stderr).map_err(
+            |_| InternalError::StderrRead
+        )?;
 
-            Ok(result)
+        Ok(CodeReturn::new(stdout, stderr, exit_code))
+    }
+
+}
+
+#[cfg(test)]
+mod tests {
+    use std::fs::File;
+    use std::io::Read;
+    use crate::external_api::model::FileModel;
+    use super::*;
+
+    fn random_usize(max: usize) -> usize {
+        let mut f = File::open("/dev/urandom").unwrap();
+        let mut buf = [0u8; 1];
+        f.read_exact(&mut buf).unwrap();
+        let value = buf[0] as usize;
+
+        if value < max {
+            max
         } else {
-            println!("No exit code");
-            Err(InternalError::InvalidExitCode)
+            value % max
         }
+    }
+
+    fn native_rand_string(len: usize) -> String {
+        let chars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890";
+        let mut string = String::new();
+
+        for _ in  0..len {
+            string.push(chars.chars().nth(random_usize(chars.len() - 1)).unwrap());
+        }
+
+        string
+    }
+
+    #[test]
+    fn workload_runs_correctly() {
+        let entry = CodeEntry { 
+            files: vec![],
+            script: vec![String::from("echo 'This is stdout' && echo 'This is stderr' >&2")],
+        };
+
+
+        let mut api = InternalApi::new(entry); // Empty code entry to avoid borrowing issues 
+            // since the same object is used in the `run` method
+
+        let res = api.run().unwrap();
+
+        assert_eq!(res.exit_code, 0);
+        assert_eq!(res.stderr, "This is stderr\n");
+        assert_eq!(res.stdout, "This is stdout\n");
+    }
+
+    #[test]
+    fn workspace_created_sucessfully() {
+        let mut base_dir = PathBuf::from(WORKSPACE_PATH);
+        base_dir.push(native_rand_string(20));
+        base_dir.push("main.sh");
+        let path = base_dir.into_os_string().into_string().unwrap();
+
+
+        let entry = CodeEntry { 
+            files: vec![
+                FileModel {
+                    filename: path.clone(),
+                    content: "#!/bin/sh\necho -n 'Some outpout'".to_string()
+                }
+            ],
+            script: vec![path.clone()],
+        };
+
+        InternalApi::new(entry).create_workspace().unwrap();
+
+        assert!(Path::new(&path).exists());
     }
 }
