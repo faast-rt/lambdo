@@ -8,7 +8,7 @@ fn main() -> Result<()> {
     info!("Starting agent");
 
     let mut external_api =
-        ExternalApi::new("/dev/pts/5".to_string(), "/dev/pts/6".to_string(), 9600);
+        ExternalApi::new("/dev/pts/4".to_string(), "/dev/pts/6".to_string(), 9600);
 
     let code_entry = external_api.read_from_serial()?;
     let mut internal_api = InternalApi::new(code_entry);
