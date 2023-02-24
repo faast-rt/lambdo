@@ -8,7 +8,6 @@ pub struct FileModel {
     pub path: PathBuf,
     pub file_name: String,
     pub content: String,
-
 }
 
 impl FileModel {
