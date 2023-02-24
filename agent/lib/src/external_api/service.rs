@@ -4,25 +4,23 @@ use log::{error, info};
 use super::model::CodeEntry;
 
 pub struct ExternalApi {
-    serial_read_path: String,
-    serial_write_path: String,
+    serial_path: String,
     serial_baud_rate: u32,
 }
 
 impl ExternalApi {
-    pub fn new(serial_read_path: String, serial_write_path: String, serial_baud_rate: u32) -> Self {
+    pub fn new(serial_path: String, serial_baud_rate: u32) -> Self {
         Self {
-            serial_read_path,
-            serial_write_path,
+            serial_path,
             serial_baud_rate,
         }
     }
 
     pub fn read_from_serial(&mut self) -> Result<CodeEntry> {
-        info!("Reading from serial port: {}", self.serial_read_path);
+        info!("Reading from serial port: {}", self.serial_path);
 
         // Open the serial port
-        let mut serial = serialport::new(&self.serial_read_path, self.serial_baud_rate)
+        let mut serial = serialport::new(&self.serial_path, self.serial_baud_rate)
             .open()
             .map_err(|e| anyhow!("Failed to open serial port: {}", e))?;
 
@@ -95,7 +93,7 @@ impl ExternalApi {
 
     pub fn write_to_serial(&mut self, data: &str) -> Result<()> {
         // Open the serial port
-        let mut serial = serialport::new(&self.serial_write_path, self.serial_baud_rate)
+        let mut serial = serialport::new(&self.serial_path, self.serial_baud_rate)
             .open()
             .map_err(|e| anyhow!("Failed to open serial port: {}", e))?;
 
@@ -124,7 +122,7 @@ mod tests {
 
     #[test]
     fn test_parse_json_payload() -> Result<()> {
-        let mut internal_api = ExternalApi::new("".to_string(), "".to_string(), 0);
+        let mut internal_api = ExternalApi::new("".to_string(), 0);
 
         // Data vector with the following JSON payload:
         // {
@@ -159,7 +157,7 @@ mod tests {
 
     #[test]
     fn test_parse_json_payload_failed() -> Result<()> {
-        let mut internal_api = ExternalApi::new("".to_string(), "".to_string(), 0);
+        let mut internal_api = ExternalApi::new("".to_string(), 0);
 
         // Data vector with missing comma
         let data = [
@@ -182,7 +180,7 @@ mod tests {
 
     #[test]
     fn test_data_cut_before_delimiter() -> Result<()> {
-        let mut internal_api = ExternalApi::new("".to_string(), "".to_string(), 0);
+        let mut internal_api = ExternalApi::new("".to_string(), 0);
 
         let data = [97, 98, 99, 28, 1, 2, 3, 4, 5, 6, 7];
         let mut data_received: Vec<u8> = Vec::new();
@@ -198,7 +196,7 @@ mod tests {
 
     #[test]
     fn test_data_transferred_without_delimiter() -> Result<()> {
-        let mut internal_api = ExternalApi::new("".to_string(), "".to_string(), 0);
+        let mut internal_api = ExternalApi::new("".to_string(), 0);
 
         let data = [97, 98, 99, 1, 2, 3, 4, 5, 6, 7];
         let mut data_received: Vec<u8> = Vec::new();
@@ -214,7 +212,7 @@ mod tests {
 
     #[test]
     fn test_data_transferred_multiple_time() -> Result<()> {
-        let mut internal_api = ExternalApi::new("".to_string(), "".to_string(), 0);
+        let mut internal_api = ExternalApi::new("".to_string(), 0);
 
         let data = [97, 98, 99];
         let data2 = [1, 2, 3, 4, 5, 6, 7];
@@ -234,7 +232,7 @@ mod tests {
 
     #[test]
     fn test_data_transferred_with_delimiter() -> Result<()> {
-        let mut internal_api = ExternalApi::new("".to_string(), "".to_string(), 0);
+        let mut internal_api = ExternalApi::new("".to_string(), 0);
 
         let data = [97, 98, 99];
         let data2 = [1, 2, 3, 4, 5, 6, 7];
