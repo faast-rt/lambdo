@@ -1,7 +1,7 @@
 use anyhow::{anyhow, Result};
 use log::{error, info};
 
-use super::model::CodeEntry;
+use super::model::{StatusMessage, ResponseMessage, RequestMessage};
 
 pub struct ExternalApi {
     serial_path: String,
@@ -16,7 +16,7 @@ impl ExternalApi {
         }
     }
 
-    pub fn read_from_serial(&mut self) -> Result<CodeEntry> {
+    pub fn read_from_serial(&mut self) -> Result<RequestMessage> {
         info!("Reading from serial port: {}", self.serial_path);
 
         // Open the serial port
@@ -81,14 +81,26 @@ impl ExternalApi {
         }
     }
 
-    pub fn parse_json_payload(&mut self, data: &[u8]) -> Result<CodeEntry> {
+    pub fn parse_json_payload(&mut self, data: &[u8]) -> Result<RequestMessage> {
         // Convert the data vector to a codeEntry struct
-        let code_entry: CodeEntry = serde_json::from_slice(data)
+        let request_message: RequestMessage = serde_json::from_slice(data)
             .map_err(|e| anyhow!("Failed to parse JSON payload: {}", e))?;
 
-        info!("Code entry: {:?}", code_entry);
+        info!("Code request message: {:?}", request_message);
 
-        Ok(code_entry)
+        Ok(request_message)
+    }
+
+    pub fn send_status_message(& mut self) -> Result<()> {
+        let status_message: StatusMessage = StatusMessage::new("ok".to_string());
+        let status_message_json = serde_json::to_string(&status_message)
+            .map_err(|e| anyhow!("Failed to serialize status message: {}", e))?;
+        self.write_to_serial(&status_message_json)?;
+        Ok(())
+    }
+
+    pub fn send_response_message(&mut self, id: String, steps: Vec<ResponseMessage>) -> Result<()> {
+        Ok(())
     }
 
     pub fn write_to_serial(&mut self, data: &str) -> Result<()> {

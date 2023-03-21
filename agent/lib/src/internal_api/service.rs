@@ -1,19 +1,19 @@
 use std::{process::Command, fs::File, path::{PathBuf, Path}};
 use anyhow::{anyhow, Result};
 use log::{error, info};
-use crate::{external_api::model::CodeEntry, internal_api::model::FileModel};
+use crate::{external_api::model::{RequestMessage, ResponseMessage, ResponseData, ResponseStep}, internal_api::model::FileModel};
 use std::io::Write;
 use super::model::{CodeReturn, InternalError};
 
 const WORKSPACE_PATH: &str = "/tmp";
 
 pub struct InternalApi {
-    pub code_entry: CodeEntry,
+    pub request_message: RequestMessage,
 }
 
 impl InternalApi {
-    pub fn new(code_entry: CodeEntry) -> Self {
-        Self { code_entry }
+    pub fn new(request_message: RequestMessage) -> Self {
+        Self { request_message }
     }
 
     pub fn create_workspace(&mut self) -> Result<()> {
@@ -23,7 +23,7 @@ impl InternalApi {
         let mut file_models: Vec<FileModel> = Vec::new();
         let root_path = PathBuf::from(WORKSPACE_PATH);
 
-        self.code_entry.files.iter().for_each(|file| {
+        self.request_message.data.files.iter().for_each(|file| {
             let mut file_path = PathBuf::from(&file.filename);
             file_path.pop();
 
@@ -98,16 +98,14 @@ impl InternalApi {
         "Hello".to_string()
     }
 
-    pub fn run(&mut self) -> Result<CodeReturn, InternalError> {
+    pub fn run(&mut self) -> Result<ResponseMessage, InternalError> {
         info!("Running code");
         
         // Running the latest command in vector for now
         
         let child_process = Command::new("/bin/sh")
             .args(["-c", 
-                self.code_entry.script.last().ok_or(
-                    InternalError::CmdSpawn
-                )?.as_str()
+                self.request_message.data.steps.last().ok_or(InternalError::CmdSpawn)?.command.as_str()
             ])
             .current_dir(WORKSPACE_PATH)
             .output()
@@ -124,8 +122,11 @@ impl InternalApi {
         let stderr = String::from_utf8(child_process.stderr).map_err(
             |_| InternalError::StderrRead
         )?;
-
-        Ok(CodeReturn::new(stdout, stderr, exit_code))
+        let step = ResponseStep::new(self.request_message.data.steps.last().ok_or(InternalError::CmdSpawn)?.command.clone(), exit_code, stdout.clone(), stderr.clone(), false);
+        let steps = vec![step];
+        let data: ResponseData = ResponseData::new(stdout.clone(), steps);
+        // let response_message = ResponseMessage::new(
+        // Ok(CodeReturn::new(stdout, stderr, exit_code))
     }
 
 }
@@ -134,7 +135,7 @@ impl InternalApi {
 mod tests {
     use std::fs::File;
     use std::io::Read;
-    use crate::external_api::model::FileModel;
+    use crate::external_api::model::{FileModel, CodeEntry};
     use super::*;
 
     fn random_usize(max: usize) -> usize {
@@ -163,7 +164,7 @@ mod tests {
 
     #[test]
     fn workload_runs_correctly() {
-        let entry = CodeEntry { 
+        let entry = CodeEntry {
             files: vec![],
             script: vec![String::from("echo 'This is stdout' && echo 'This is stderr' >&2")],
         };

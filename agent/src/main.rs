@@ -28,13 +28,15 @@ fn main() -> Result<()> {
 
     trace!(
         "config file loaded successfully with content: {:#?}",
-        config
+        config  
     );
 
     let mut external_api = ExternalApi::new(config.serial.path, config.serial.baud_rate);
 
-    let code_entry = external_api.read_from_serial()?;
-    let mut internal_api = InternalApi::new(code_entry);
+    external_api.send_status_message()?;
+
+    let request_message = external_api.read_from_serial()?;
+    let mut internal_api = InternalApi::new(request_message);
     internal_api.create_workspace()?;
     let res = internal_api.run().map_err(|e| anyhow!("{:?}", e));
 
