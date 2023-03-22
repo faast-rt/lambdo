@@ -35,13 +35,3 @@ impl CodeReturn {
         }
     }
 }
-
-#[derive(Debug)]
-pub enum InternalError {
-    CmdSpawn,
-    ChildWait(std::io::Error),
-    ChildExitError(i32),
-    InvalidExitCode,
-    StdoutRead,
-    StderrRead,
-}

@@ -32,10 +32,10 @@ pub struct StatusMessage {
 }
 
 impl StatusMessage {
-    pub fn new(code: String) -> StatusMessage {
+    pub fn new() -> StatusMessage {
         StatusMessage {
             r#type: Type::Status,
-            code: Code::Run
+            code: Code::Ok,
         }
     }
 }
@@ -46,17 +46,23 @@ pub struct ResponseStep {
     pub result: i32,
     pub stdout: String,
     pub stderr: String,
-    pub enable_output: bool
+    pub enable_output: bool,
 }
 
 impl ResponseStep {
-    pub fn new(command: String, result: i32, stdout: String, stderr: String, enable_output: bool) -> ResponseStep {
+    pub fn new(
+        command: String,
+        result: i32,
+        stdout: String,
+        stderr: String,
+        enable_output: bool,
+    ) -> ResponseStep {
         ResponseStep {
             command,
             result,
             stdout,
             stderr,
-            enable_output
+            enable_output,
         }
     }
 }
@@ -64,16 +70,12 @@ impl ResponseStep {
 #[derive(Deserialize, Serialize, Debug)]
 pub struct ResponseData {
     pub id: String,
-    pub steps: Vec<ResponseStep>
+    pub steps: Vec<ResponseStep>,
 }
-
 
 impl ResponseData {
     pub fn new(id: String, steps: Vec<ResponseStep>) -> ResponseData {
-        ResponseData {
-            id,
-            steps
-        }
+        ResponseData { id, steps }
     }
 }
 
@@ -81,7 +83,7 @@ impl ResponseData {
 pub struct ResponseMessage {
     pub r#type: Type,
     pub code: Code,
-    pub data: ResponseData
+    pub data: ResponseData,
 }
 
 impl ResponseMessage {
@@ -89,30 +91,35 @@ impl ResponseMessage {
         ResponseMessage {
             r#type: Type::Response,
             code: Code::Run,
-            data
+            data,
         }
     }
 }
 
-#[derive(Deserialize, Serialize, Debug)]
+#[derive(Deserialize, Serialize, Debug, Clone)]
 pub struct RequestStep {
     pub command: String,
-    pub enable_output: bool
+    pub enable_output: bool,
 }
-
 
 #[derive(Deserialize, Serialize, Debug)]
 pub struct RequestData {
     pub id: String,
     pub files: Vec<FileModel>,
-    pub steps: Vec<RequestStep>
+    pub steps: Vec<RequestStep>,
+}
+
+impl RequestData {
+    pub fn new(id: String, files: Vec<FileModel>, steps: Vec<RequestStep>) -> RequestData {
+        RequestData { id, files, steps }
+    }
 }
 
 #[derive(Deserialize, Serialize, Debug)]
 pub struct RequestMessage {
     pub r#type: Type,
     pub code: Code,
-    pub data: RequestData
+    pub data: RequestData,
 }
 
 impl RequestMessage {
@@ -120,7 +127,7 @@ impl RequestMessage {
         RequestMessage {
             r#type: Type::Request,
             code: Code::Run,
-            data
+            data,
         }
     }
 }

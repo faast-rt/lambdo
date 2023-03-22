@@ -3,7 +3,7 @@ use agent_lib::{
 };
 use anyhow::{anyhow, Result};
 use clap::Parser;
-use log::{debug, error, info, trace};
+use log::{debug, info, trace};
 
 #[derive(Parser)]
 #[clap(
@@ -28,7 +28,7 @@ fn main() -> Result<()> {
 
     trace!(
         "config file loaded successfully with content: {:#?}",
-        config  
+        config
     );
 
     let mut external_api = ExternalApi::new(config.serial.path, config.serial.baud_rate);
@@ -38,20 +38,8 @@ fn main() -> Result<()> {
     let request_message = external_api.read_from_serial()?;
     let mut internal_api = InternalApi::new(request_message);
     internal_api.create_workspace()?;
-    let res = internal_api.run().map_err(|e| anyhow!("{:?}", e));
-
-    match res {
-        Err(e) => error!("Error: {:?}", e),
-        Ok(code) => {
-            info!("Code: {:?}", code);
-
-            // Convert Code object to JSON
-            let code_json = serde_json::to_string(&code).unwrap();
-
-            // Write the JSON to the serial port
-            external_api.write_to_serial(&code_json)?;
-        }
-    }
+    let response_message = internal_api.run().map_err(|e| anyhow!("{:?}", e))?;
+    external_api.send_response_message(response_message)?;
 
     info!("Stopping agent");
     Ok(())

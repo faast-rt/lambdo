@@ -1,9 +1,16 @@
-use std::{process::Command, fs::File, path::{PathBuf, Path}};
-use anyhow::{anyhow, Result};
+use super::model::CodeReturn;
+use crate::{
+    external_api::model::{RequestMessage, ResponseData, ResponseMessage, ResponseStep},
+    internal_api::model::FileModel,
+};
+use anyhow::{anyhow, Ok, Result};
 use log::{error, info};
-use crate::{external_api::model::{RequestMessage, ResponseMessage, ResponseData, ResponseStep}, internal_api::model::FileModel};
 use std::io::Write;
-use super::model::{CodeReturn, InternalError};
+use std::{
+    fs::File,
+    path::{Path, PathBuf},
+    process::Command,
+};
 
 const WORKSPACE_PATH: &str = "/tmp";
 
@@ -94,49 +101,71 @@ impl InternalApi {
         Ok(())
     }
 
-    pub fn write_log(&self) -> String {
-        "Hello".to_string()
+    pub fn run(&mut self) -> Result<ResponseMessage> {
+        info!("Running all steps");
+        let mut steps: Vec<ResponseStep> = Vec::new();
+
+        // For each commands in the request, run it
+        let steps_to_process = self.request_message.data.steps.clone();
+
+        for step in steps_to_process {
+            let command = step.command.as_str();
+            let code_return = self.run_one(command)?;
+
+            // Hide Stdout if enable_output is false
+            let stdout = if step.enable_output {
+                code_return.stdout
+            } else {
+                "".to_string()
+            };
+            let response_step = ResponseStep::new(
+                command.to_string(),
+                code_return.exit_code,
+                stdout,
+                code_return.stderr,
+                step.enable_output,
+            );
+
+            steps.push(response_step);
+        }
+
+        let data: ResponseData = ResponseData::new(self.request_message.data.id.clone(), steps);
+        let response_message = ResponseMessage::new(data);
+
+        Ok(response_message)
     }
 
-    pub fn run(&mut self) -> Result<ResponseMessage, InternalError> {
-        info!("Running code");
-        
-        // Running the latest command in vector for now
-        
+    pub fn run_one(&mut self, command: &str) -> Result<CodeReturn> {
+        info!("Running command : {}", command);
+
         let child_process = Command::new("/bin/sh")
-            .args(["-c", 
-                self.request_message.data.steps.last().ok_or(InternalError::CmdSpawn)?.command.as_str()
-            ])
+            .args(["-c", command])
             .current_dir(WORKSPACE_PATH)
             .output()
-            .map_err(|_|InternalError::CmdSpawn)?;
+            .map_err(|e| anyhow!("Failed to spawn command : {}", e))?;
 
-        info!("Code execution finished, gathering outputs and exit code");
+        let exit_code = child_process
+            .status
+            .code()
+            .ok_or_else(|| anyhow!("Failed to retrieve exit_code"))?;
+        let stdout = String::from_utf8(child_process.stdout)
+            .map_err(|e| anyhow!("Failed to retrieve stdout stream : {}", e))?;
+        let stderr = String::from_utf8(child_process.stderr)
+            .map_err(|e| anyhow!("Failed to retrieve stderr stream : {}", e))?;
 
-        let exit_code = child_process.status.code().ok_or(
-            InternalError::InvalidExitCode
-        )?;
-        let stdout = String::from_utf8(child_process.stdout).map_err(
-            |_| InternalError::StdoutRead
-        )?;
-        let stderr = String::from_utf8(child_process.stderr).map_err(
-            |_| InternalError::StderrRead
-        )?;
-        let step = ResponseStep::new(self.request_message.data.steps.last().ok_or(InternalError::CmdSpawn)?.command.clone(), exit_code, stdout.clone(), stderr.clone(), false);
-        let steps = vec![step];
-        let data: ResponseData = ResponseData::new(stdout.clone(), steps);
-        // let response_message = ResponseMessage::new(
-        // Ok(CodeReturn::new(stdout, stderr, exit_code))
+        let code_return = CodeReturn::new(stdout, stderr, exit_code);
+
+        info!("Code execution finished: {:?}", code_return);
+        Ok(code_return)
     }
-
 }
 
 #[cfg(test)]
 mod tests {
+    use super::*;
+    use crate::external_api::model::{CodeEntry, FileModel, RequestData, RequestStep};
     use std::fs::File;
     use std::io::Read;
-    use crate::external_api::model::{FileModel, CodeEntry};
-    use super::*;
 
     fn random_usize(max: usize) -> usize {
         let mut f = File::open("/dev/urandom").unwrap();
@@ -155,7 +184,7 @@ mod tests {
         let chars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890";
         let mut string = String::new();
 
-        for _ in  0..len {
+        for _ in 0..len {
             string.push(chars.chars().nth(random_usize(chars.len() - 1)).unwrap());
         }
 
@@ -164,20 +193,29 @@ mod tests {
 
     #[test]
     fn workload_runs_correctly() {
-        let entry = CodeEntry {
-            files: vec![],
-            script: vec![String::from("echo 'This is stdout' && echo 'This is stderr' >&2")],
+        let files: Vec<FileModel> = Vec::new();
+        let mut steps: Vec<RequestStep> = Vec::new();
+        let step = RequestStep {
+            command: "echo 'This is stdout' && echo 'This is stderr' >&2".to_string(),
+            enable_output: true,
         };
+        steps.push(step);
+        let request_data = RequestData::new(
+            "4bf68974-c315-4c41-aee2-3dc2920e76e9".to_string(),
+            files,
+            steps,
+        );
+        let request_message = RequestMessage::new(request_data);
 
-
-        let mut api = InternalApi::new(entry); // Empty code entry to avoid borrowing issues 
-            // since the same object is used in the `run` method
+        let mut api = InternalApi::new(request_message);
 
         let res = api.run().unwrap();
 
-        assert_eq!(res.exit_code, 0);
-        assert_eq!(res.stderr, "This is stderr\n");
-        assert_eq!(res.stdout, "This is stdout\n");
+        assert_eq!(res.data.steps[0].result, 0);
+        assert_eq!(res.data.steps[0].stderr, "This is stderr\n");
+        assert_eq!(res.data.steps[0].stdout, "This is stdout\n");
+        assert_eq!(res.data.id, "4bf68974-c315-4c41-aee2-3dc2920e76e9");
+        assert!(res.data.steps[0].enable_output);
     }
 
     #[test]
@@ -187,19 +225,32 @@ mod tests {
         base_dir.push("main.sh");
         let path = base_dir.into_os_string().into_string().unwrap();
 
+        let files: Vec<FileModel> = vec![FileModel {
+            filename: path.clone(),
+            content: "Hello World!".to_string(),
+        }];
+        let steps: Vec<RequestStep> = Vec::new();
+        let request_data = RequestData::new(
+            "4bf68974-c315-4c41-aee2-3dc2920e76e9".to_string(),
+            files,
+            steps,
+        );
+        let request_message = RequestMessage::new(request_data);
 
-        let entry = CodeEntry { 
-            files: vec![
-                FileModel {
-                    filename: path.clone(),
-                    content: "#!/bin/sh\necho -n 'Some outpout'".to_string()
-                }
-            ],
-            script: vec![path.clone()],
-        };
-
-        InternalApi::new(entry).create_workspace().unwrap();
+        InternalApi::new(request_message)
+            .create_workspace()
+            .unwrap();
 
         assert!(Path::new(&path).exists());
+
+        //Check that the file contains the specified content
+        let mut file = File::open(&path).unwrap();
+        let mut buffer = [0; 12];
+        file.read(&mut buffer[..]).unwrap();
+
+        // Convert buffer to string
+        let content = String::from_utf8(buffer.to_vec()).unwrap();
+        assert!(file.metadata().unwrap().is_file());
+        assert_eq!(content, "Hello World!");
     }
 }
