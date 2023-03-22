@@ -1,7 +1,8 @@
 use anyhow::{anyhow, Result};
-use log::{error, info};
+use log::{error, info, debug, trace};
 
 use super::model::{RequestMessage, ResponseMessage, StatusMessage};
+use super::comms::{Message, MESSAGE_SIZE_NB_BYTES};
 
 pub struct ExternalApi {
     serial_path: String,
@@ -25,20 +26,46 @@ impl ExternalApi {
             .map_err(|e| anyhow!("Failed to open serial port: {}", e))?;
 
         // Create a buffer to hold the data
+        let mut data_size: usize = 0;
+        let mut size_buffer: [u8; MESSAGE_SIZE_NB_BYTES] = [0; MESSAGE_SIZE_NB_BYTES];
+        let mut got_size = false;
+
         let mut buf = [0; 128];
+        let mut bytes_read: usize = 0;
 
         // Create the final vector to hold the data
         let mut data_received: Vec<u8> = Vec::new();
 
-        let mut find_delimiter = false;
-
-        while !find_delimiter {
-            match serial.read(&mut buf) {
+        //we read the buffer and retrieve the first 8 bytes which are the size of the message 
+        while !got_size {
+            match serial.read(&mut size_buffer) {
                 Ok(t) => {
-                    if t > 0 {
-                        info!("Buffer received {:?}", &buf[..t]);
-                        find_delimiter =
-                            self.append_data_before_delimiter(&buf, &mut data_received)?;
+                    if t == 0 {
+                        break;
+                    }
+
+                    bytes_read += t;
+                    data_received.extend_from_slice(&size_buffer[..t]);
+
+                    trace!("Received {} bytes", t);
+                    trace!("Size buffer: {:?}", data_received.clone());
+
+                    if bytes_read >= MESSAGE_SIZE_NB_BYTES {
+                        got_size = true;
+                        
+                        let size_string = String::from_utf8(
+                            data_received.clone()
+                        ).map_err(
+                            |e| anyhow!("Failed to get message size as string: {}", e)
+                        )?;
+                        
+                        trace!("Size string: {}", size_string);
+                        
+                        data_size = size_string.parse::<usize>().map_err(
+                            |e| anyhow!("Failed to parse length of message: {}", e)
+                        )?;
+
+                        data_received.drain(..MESSAGE_SIZE_NB_BYTES);
                     }
                 }
                 Err(ref e) if e.kind() == std::io::ErrorKind::TimedOut => (),
@@ -46,9 +73,28 @@ impl ExternalApi {
             }
         }
 
-        info!("Final received data: {:?}", data_received);
+        bytes_read = 0;
+
+        while bytes_read < data_size {
+            match serial.read(&mut buf) {
+                Ok(t) => {
+                    if t > 0 {
+                        bytes_read += t;
+                        data_received.extend_from_slice(&buf[..t]);
+                        debug!("Received {} bytes", t);
+                    }
+                }
+                Err(ref e) if e.kind() == std::io::ErrorKind::TimedOut => (),
+                Err(e) => error!("{:?}", e),
+            }
+        }
+
+        debug!("Final received data: {:?}", data_received);
+        debug!("Total bytes read {:?}", bytes_read);
 
         let code_entry = self.parse_json_payload(&data_received)?;
+
+        info!("Code entry: {:?}", code_entry);
 
         // Flush the serial port
         serial
@@ -56,29 +102,6 @@ impl ExternalApi {
             .map_err(|e| anyhow!("Failed to flush serial port: {}", e))?;
 
         Ok(code_entry)
-    }
-
-    pub fn append_data_before_delimiter(
-        &mut self,
-        buf: &[u8],
-        data_received: &mut Vec<u8>,
-    ) -> Result<bool> {
-        // find char 1c (record separator) in the buffer
-        if let Some(i) = buf.iter().position(|&r| r == 0x1c) {
-            // Split the buffer at the position of the record separator
-            let (data_to_add, _) = buf.split_at(i);
-
-            // Add the data to the data vector
-            data_received.extend_from_slice(data_to_add);
-
-            info!("Delimiter found at index: {}", i);
-
-            Ok(true)
-        } else {
-            // Add the data to the data vector
-            data_received.extend_from_slice(&buf[..buf.len()]);
-            Ok(false)
-        }
     }
 
     pub fn parse_json_payload(&mut self, data: &[u8]) -> Result<RequestMessage> {
@@ -120,7 +143,8 @@ impl ExternalApi {
             .map_err(|e| anyhow!("Failed to open serial port: {}", e))?;
 
         // Conver the string to a byte array
-        let buf = data.as_bytes();
+        let message = Message::new(data.to_string()).to_bytes();
+        let buf = message.as_slice();
 
         // Write the byte array to the serial port
         serial
@@ -232,82 +256,6 @@ mod tests {
         let code_entry = internal_api.parse_json_payload(&data);
 
         assert!(code_entry.is_err());
-
-        Ok(())
-    }
-
-    #[test]
-    fn test_data_cut_before_delimiter() -> Result<()> {
-        let mut internal_api = ExternalApi::new("".to_string(), 0);
-
-        let data = [97, 98, 99, 28, 1, 2, 3, 4, 5, 6, 7];
-        let mut data_received: Vec<u8> = Vec::new();
-
-        let find_demiliter =
-            internal_api.append_data_before_delimiter(&data, &mut data_received)?;
-
-        assert!(find_demiliter);
-        assert_eq!(data_received, [97, 98, 99]);
-
-        Ok(())
-    }
-
-    #[test]
-    fn test_data_transferred_without_delimiter() -> Result<()> {
-        let mut internal_api = ExternalApi::new("".to_string(), 0);
-
-        let data = [97, 98, 99, 1, 2, 3, 4, 5, 6, 7];
-        let mut data_received: Vec<u8> = Vec::new();
-
-        let find_demiliter =
-            internal_api.append_data_before_delimiter(&data, &mut data_received)?;
-
-        assert!(!find_demiliter);
-        assert_eq!(data_received, [97, 98, 99, 1, 2, 3, 4, 5, 6, 7]);
-
-        Ok(())
-    }
-
-    #[test]
-    fn test_data_transferred_multiple_time() -> Result<()> {
-        let mut internal_api = ExternalApi::new("".to_string(), 0);
-
-        let data = [97, 98, 99];
-        let data2 = [1, 2, 3, 4, 5, 6, 7];
-        let mut data_received: Vec<u8> = Vec::new();
-
-        let find_demiliter =
-            internal_api.append_data_before_delimiter(&data, &mut data_received)?;
-        let find_demiliter2 =
-            internal_api.append_data_before_delimiter(&data2, &mut data_received)?;
-
-        assert!(!find_demiliter);
-        assert!(!find_demiliter2);
-        assert_eq!(data_received, [97, 98, 99, 1, 2, 3, 4, 5, 6, 7]);
-
-        Ok(())
-    }
-
-    #[test]
-    fn test_data_transferred_with_delimiter() -> Result<()> {
-        let mut internal_api = ExternalApi::new("".to_string(), 0);
-
-        let data = [97, 98, 99];
-        let data2 = [1, 2, 3, 4, 5, 6, 7];
-        let data3 = [8, 9, 10, 28, 11, 12, 13];
-        let mut data_received: Vec<u8> = Vec::new();
-
-        let find_demiliter =
-            internal_api.append_data_before_delimiter(&data, &mut data_received)?;
-        let find_demiliter2 =
-            internal_api.append_data_before_delimiter(&data2, &mut data_received)?;
-        let find_demiliter3 =
-            internal_api.append_data_before_delimiter(&data3, &mut data_received)?;
-
-        assert!(!find_demiliter);
-        assert!(!find_demiliter2);
-        assert!(find_demiliter3);
-        assert_eq!(data_received, [97, 98, 99, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10]);
 
         Ok(())
     }
