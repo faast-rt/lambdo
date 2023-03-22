@@ -12,17 +12,33 @@ use std::{
     process::Command,
 };
 
+/// The path where the workspace will be created
 const WORKSPACE_PATH: &str = "/tmp";
 
+/// The internal API
 pub struct InternalApi {
     pub request_message: RequestMessage,
 }
 
 impl InternalApi {
+    /// Create a new instance of InternalApi
+    ///
+    /// # Arguments
+    ///
+    /// * `request_message` - The request message
+    ///
+    /// # Returns
+    ///
+    /// * `Self` - The new instance of InternalApi
     pub fn new(request_message: RequestMessage) -> Self {
         Self { request_message }
     }
 
+    /// Create the workspace for the code execution
+    ///
+    /// # Returns
+    ///
+    /// * `Result<()>` - Nothing or an error
     pub fn create_workspace(&mut self) -> Result<()> {
         info!("Creating workspace for code execution");
 
@@ -101,6 +117,11 @@ impl InternalApi {
         Ok(())
     }
 
+    /// Run all the steps of the request message
+    ///
+    /// # Returns
+    ///
+    /// * `Result<ResponseMessage>` - The response message or an error
     pub fn run(&mut self) -> Result<ResponseMessage> {
         info!("Running all steps");
         let mut steps: Vec<ResponseStep> = Vec::new();
@@ -135,6 +156,15 @@ impl InternalApi {
         Ok(response_message)
     }
 
+    /// Run a command
+    ///
+    /// # Arguments
+    ///
+    /// * `command` - The command to run
+    ///
+    /// # Returns
+    ///
+    /// * `Result<CodeReturn>` - The code return or an error
     pub fn run_one(&mut self, command: &str) -> Result<CodeReturn> {
         info!("Running command : {}", command);
 
@@ -167,6 +197,15 @@ mod tests {
     use std::fs::File;
     use std::io::Read;
 
+    /// Generate a random integer
+    ///
+    /// # Arguments
+    ///
+    /// * `max` - The maximum value
+    ///
+    /// # Returns
+    ///
+    /// * `usize` - The random integer
     fn random_usize(max: usize) -> usize {
         let mut f = File::open("/dev/urandom").unwrap();
         let mut buf = [0u8; 1];
@@ -180,6 +219,15 @@ mod tests {
         }
     }
 
+    /// Generate a random string
+    ///
+    /// # Arguments
+    ///
+    /// * `len` - The length of the string
+    ///
+    /// # Returns
+    ///
+    /// * `String` - The random string
     fn native_rand_string(len: usize) -> String {
         let chars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890";
         let mut string = String::new();
@@ -191,6 +239,7 @@ mod tests {
         string
     }
 
+    /// Test the creation of a file
     #[test]
     fn workload_runs_correctly() {
         let files: Vec<FileModel> = Vec::new();
@@ -218,6 +267,7 @@ mod tests {
         assert!(res.data.steps[0].enable_output);
     }
 
+    /// Test the execution of a command with a workspace
     #[test]
     fn workspace_created_sucessfully() {
         let mut base_dir = PathBuf::from(WORKSPACE_PATH);
