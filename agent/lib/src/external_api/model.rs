@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 
-#[derive(Deserialize, Serialize, Debug)]
+#[derive(Deserialize, Serialize, Debug, PartialEq, Eq)]
 pub struct FileModel {
     pub filename: String,
     pub content: String,
@@ -12,14 +12,14 @@ pub struct CodeEntry {
     pub script: Vec<String>, // All commands to execute at startup
 }
 
-#[derive(Deserialize, Serialize, Debug)]
+#[derive(Deserialize, Serialize, Debug, PartialEq, Eq)]
 pub enum Type {
     Status,
     Request,
     Response,
 }
 
-#[derive(Deserialize, Serialize, Debug)]
+#[derive(Deserialize, Serialize, Debug, PartialEq, Eq)]
 pub enum Code {
     Run,
     Ok,
@@ -37,6 +37,12 @@ impl StatusMessage {
             r#type: Type::Status,
             code: Code::Ok,
         }
+    }
+}
+
+impl Default for StatusMessage {
+    fn default() -> Self {
+        Self::new()
     }
 }
 
@@ -96,7 +102,7 @@ impl ResponseMessage {
     }
 }
 
-#[derive(Deserialize, Serialize, Debug, Clone)]
+#[derive(Deserialize, Serialize, Debug, Clone, PartialEq, Eq)]
 pub struct RequestStep {
     pub command: String,
     pub enable_output: bool,

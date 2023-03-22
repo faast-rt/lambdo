@@ -163,7 +163,7 @@ impl InternalApi {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::external_api::model::{CodeEntry, FileModel, RequestData, RequestStep};
+    use crate::external_api::model::{FileModel, RequestData, RequestStep};
     use std::fs::File;
     use std::io::Read;
 
@@ -246,7 +246,7 @@ mod tests {
         //Check that the file contains the specified content
         let mut file = File::open(&path).unwrap();
         let mut buffer = [0; 12];
-        file.read(&mut buffer[..]).unwrap();
+        file.read_exact(&mut buffer[..]).unwrap();
 
         // Convert buffer to string
         let content = String::from_utf8(buffer.to_vec()).unwrap();
