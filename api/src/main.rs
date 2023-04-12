@@ -13,7 +13,7 @@ async fn main() -> std::io::Result<()> {
     let port = env::var("SERVER_PORT").unwrap_or("8080".to_string());
     let address = env::var("SERVER_ADDRESS").unwrap_or("127.0.0.1".to_string());
 
-    info!("Starting server");
+    info!("Starting server on {}:{}", address, port);
     HttpServer::new(|| {
         App::new()
             .service(run)
