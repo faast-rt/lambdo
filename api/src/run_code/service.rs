@@ -6,6 +6,7 @@ use std::{os::unix::net::UnixListener, path::Path, u32};
 use uuid::Uuid;
 use vmm::VMM;
 
+#[derive(Debug)]
 pub enum Error {
     VmmNew(vmm::Error),
 
@@ -75,6 +76,7 @@ fn run(opts: VMMOpts) -> Result<(), Error> {
         None,
         None,
         opts.socket,
+        true,
     )
     .map_err(Error::VmmConfigure)?;
 
