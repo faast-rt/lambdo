@@ -1,5 +1,5 @@
 use actix_web::{post, web, Responder};
-use log::info;
+use log::{info, error};
 
 use crate::run_code::model::{RunRequest, RunResponse};
 use std::error::Error;
@@ -21,7 +21,8 @@ async fn run(_run_body: web::Json<RunRequest>) -> Result<impl Responder, Box<dyn
             }
         }
         // for the moment just signal an internal server error
-        Err(_) => {
+        Err(e) => {
+            error!("Error: {:?}", e);
             RunResponse {
                 status: 1,
                 stdout: "".to_string(),
