@@ -1,6 +1,20 @@
+use agent_lib::{api::service::Api, config::AgentConfig};
 use anyhow::{anyhow, Result};
-use agent_lib::{api::service::Api};
+use clap::Parser;
 use log::{debug, info, trace};
+
+/// Agent CLI options
+#[derive(Parser)]
+#[clap(
+    version = "0.1",
+    author = "Polytech Montpellier - DevOps",
+    about = "A Serverless runtime in Rust"
+)]
+pub struct AgentOpts {
+    /// Config file path
+    #[clap(short, long, default_value = "/etc/lambdo/agent/config.yaml")]
+    config: String,
+}
 
 /// Main function
 fn main() -> Result<()> {
@@ -9,8 +23,21 @@ fn main() -> Result<()> {
 
     info!("Starting agent");
 
+    // Parse CLI options
+    let options = AgentOpts::parse();
+
+    debug!("loading config file at {}", options.config);
+
+    // Load config file
+    let config = AgentConfig::load(options.config.as_str())?;
+
+    trace!(
+        "config file loaded successfully with content: {:#?}",
+        config
+    );
+
     // Initialize API
-    let mut api = Api::new("/dev/pts/6".to_string(), 9200);
+    let mut api = Api::new(config.serial.path, config.serial.baud_rate);
 
     // Send status message to serial port
     api.send_status_message()?;
