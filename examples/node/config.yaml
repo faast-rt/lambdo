@@ -1,0 +1,32 @@
+apiVersion: lambdo.io/v1alpha1
+kind: Config
+api:
+  # The port on which the API server will listen
+  port: 3000
+  # The host on which the API server will listen
+  host: 127.0.0.1
+vmm:
+  # The kernel path to use for the vmm
+  kernel: /var/lib/lambdo/kernel/vmlinux.bin
+agent: # NOT IMPLEMENTED
+  # The path to the agent binary
+  path: /usr/local/bin/lambdo-agent
+  # The path to the agent configuration file
+  config: /etc/lambdo/agent.yaml
+languages:
+  # The name of the language runtime
+  - name: node
+    # The version of the node runtime
+    version: 12
+    # The initramfs to use for the runtime
+    initramfs: /var/lib/lambdo/initramfs/node-12.img
+    # The steps to run the code
+    steps:
+      - name: Run the code
+        command: node {{fileName}}
+        # The output configuration
+        output:
+          # Whether to enable the output
+          enabled: true
+          # Whether to enable debug output (useful for build steps)
+          debug: false
