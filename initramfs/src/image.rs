@@ -64,7 +64,7 @@ impl Image {
 
     pub fn export_to_initramfs(&self, init_path: &str, agent_path: &str) -> Result<()> {
         // Write the cpio to disk
-        let file_name = format!("initramfs-{}-{}.img", self.name.replace("/", "-"), self.tag);
+        let file_name = format!("initramfs-{}-{}.img", self.name.replace('/', "-"), self.tag);
         let archive = Encoder::new(
             File::create(file_name).map_err(|e| anyhow!(e).context("Failed to create file"))?,
         )

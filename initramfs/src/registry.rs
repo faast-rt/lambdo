@@ -136,14 +136,12 @@ impl Registry {
 
     pub async fn get_image(&self, image_full_name: &str) -> Result<Image> {
         let mut image = Image::new(image_full_name)?;
-        let image_name = image.name();
-        let token = self.get_token(&image_name).await?;
+        let image_name = &image.name();
+        let token = self.get_token(image_name).await?;
         let layers_metadata = self
-            .get_layers_metadata(&token, &image_name, &image.tag())
+            .get_layers_metadata(&token, image_name, image.tag())
             .await?;
-        let layers = self
-            .get_layers(&token, &image_name, layers_metadata)
-            .await?;
+        let layers = self.get_layers(&token, image_name, layers_metadata).await?;
 
         image.layers = layers;
 
