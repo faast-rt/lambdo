@@ -18,73 +18,73 @@ pub enum LambdoConfigError {
     VersionNotSupported,
 }
 
-#[derive(Serialize, Deserialize, PartialEq, Debug)]
+#[derive(Serialize, Deserialize, PartialEq, Debug, Clone)]
 #[allow(non_snake_case)]
 pub struct LambdoConfig {
     /// The api version of the lambdo config file
-    apiVersion: String,
+    pub apiVersion: String,
     /// The kind of the lambdo config file
-    kind: String,
+    pub kind: String,
     /// The lambdo vmm configuration
-    vmm: LambdoVMMConfig,
+    pub vmm: LambdoVMMConfig,
     /// The lambdo api configuration
-    api: LambdoApiConfig,
+    pub api: LambdoApiConfig,
     /// The lambdo agent configuration
-    agent: LambdoAgentConfig,
+    pub agent: LambdoAgentConfig,
     /// The lambdo languages configuration
-    languages: Vec<LambdoLanguageConfig>,
+    pub languages: Vec<LambdoLanguageConfig>,
 }
 
-#[derive(Serialize, Deserialize, PartialEq, Debug)]
+#[derive(Serialize, Deserialize, PartialEq, Debug, Clone)]
 pub struct LambdoVMMConfig {
     /// The kernel path to use for the vmm
-    kernel: String,
+    pub kernel: String,
 }
 
-#[derive(Serialize, Deserialize, PartialEq, Debug)]
+#[derive(Serialize, Deserialize, PartialEq, Debug, Clone)]
 pub struct LambdoApiConfig {
     /// The port on which the API server will listen
-    host: String,
+    pub host: String,
     /// The host on which the API server will listen
-    port: u16,
+    pub port: u16,
 }
 
-#[derive(Serialize, Deserialize, PartialEq, Debug)]
+#[derive(Serialize, Deserialize, PartialEq, Debug, Clone)]
 pub struct LambdoAgentConfig {
     /// The path to the agent binary
-    path: String,
+    pub path: String,
     /// The path to the agent configuration file
-    config: String,
+    pub config: String,
 }
 
-#[derive(Serialize, Deserialize, PartialEq, Debug)]
+#[derive(Serialize, Deserialize, PartialEq, Debug, Clone)]
 pub struct LambdoLanguageConfig {
     /// The name of the language
-    name: String,
+    pub name: String,
     /// The version of the language
-    version: String,
+    pub version: String,
     /// The initramfs path to use for the language
-    initramfs: String,
+    pub initramfs: String,
     /// The steps to execute
-    steps: Vec<LambdoLanguageStepConfig>,
+    pub steps: Vec<LambdoLanguageStepConfig>,
 }
 
-#[derive(Serialize, Deserialize, PartialEq, Debug)]
+#[derive(Serialize, Deserialize, PartialEq, Debug, Clone)]
 pub struct LambdoLanguageStepConfig {
     /// The name of the step
-    name: Option<String>,
+    pub name: Option<String>,
     /// The command to execute
-    command: String,
+    pub command: String,
     /// The output configuration
-    output: LambdoLanguageStepOutputConfig,
+    pub output: LambdoLanguageStepOutputConfig,
 }
 
-#[derive(Serialize, Deserialize, PartialEq, Debug)]
+#[derive(Serialize, Deserialize, PartialEq, Debug, Clone)]
 pub struct LambdoLanguageStepOutputConfig {
     /// Is the output enabled ?
-    enabled: bool,
+    pub enabled: bool,
     /// Is the output a debug output ?
-    debug: bool,
+    pub debug: bool,
 }
 
 impl LambdoConfig {

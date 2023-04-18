@@ -1,5 +1,4 @@
 use log::warn;
-use std::env;
 use std::io::{BufRead, BufReader, Write};
 use std::os::unix::net::UnixStream;
 use std::thread::{spawn, JoinHandle};
@@ -7,7 +6,7 @@ use std::{os::unix::net::UnixListener, path::Path, u32};
 use uuid::Uuid;
 use vmm::VMM;
 
-use crate::run_code::model::{AgentExecution, AgentExecutionStep, AgentExecutionFile};
+use crate::model::{AgentExecution, AgentExecutionStep, AgentExecutionFile};
 
 #[derive(Debug)]
 pub enum Error {
@@ -33,7 +32,7 @@ struct VMMOpts {
     socket: Option<String>,
 }
 
-pub fn run_vmm() -> Result<String, Error> {
+pub fn run_vmm(kernel_path: String) -> Result<String, Error> {
     let socket_name = format!("/tmp/{}.sock", Uuid::new_v4().to_string());
 
     let socket_path = Path::new(socket_name.as_str());
@@ -42,7 +41,7 @@ pub fn run_vmm() -> Result<String, Error> {
     }
 
     let opts: VMMOpts = VMMOpts {
-        kernel: env::var("KERNEL_PATH").unwrap(),
+        kernel: kernel_path,
         cpus: 1,
         memory: 1024,
         console: None,

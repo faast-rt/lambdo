@@ -1,5 +1,7 @@
+use actix_web::{web, App, HttpServer};
+use api::controller::run;
 use clap::Parser;
-use lambdo::config::LambdoConfig;
+use shared::config::LambdoConfig;
 use log::{debug, info, trace};
 
 #[derive(Parser)]
@@ -14,21 +16,30 @@ pub struct LambdoOpts {
     config: String,
 }
 
-fn main() -> Result<(), Box<dyn std::error::Error>> {
+#[actix_web::main]
+async fn main() -> std::io::Result<()> {
     env_logger::init();
     let options = LambdoOpts::parse();
 
     info!("starting up ...");
 
     debug!("loading config file at {}", options.config);
-    let config = LambdoConfig::load(options.config.as_str())?;
+    let config = LambdoConfig::load(options.config.as_str()).unwrap();
     trace!(
         "config file loaded successfully with content: {:#?}",
         config
     );
 
-    // todo: do something
+    let host = config.api.host.clone();
+    let port = config.api.port.clone();
 
-    info!("shutting down");
-    Ok(())
+    info!("Starting server on {}:{}", host, port);
+    HttpServer::new(move || {
+        App::new()
+            .app_data(web::Data::new(config.clone()))
+            .service(run)
+    })
+    .bind((host, port))?
+    .run()
+    .await
 }

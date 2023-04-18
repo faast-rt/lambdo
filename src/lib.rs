@@ -1,7 +1,5 @@
 use thiserror::Error;
 
-pub mod config;
-
 #[derive(Error, Debug)]
 pub enum LambdoError {
     #[error(transparent)]
