@@ -1,38 +1,16 @@
+use actix_web::web;
 use log::warn;
-use std::io::{BufRead, BufReader, Write};
-use std::os::unix::net::UnixStream;
-use std::thread::{spawn, JoinHandle};
-use std::{os::unix::net::UnixListener, path::Path, u32};
+use shared::{RequestMessage, RequestData, ResponseMessage};
+use shared::config::{LambdoLanguageConfig, LambdoConfig};
+use std::{os::unix::net::UnixListener, path::Path};
 use uuid::Uuid;
-use vmm::VMM;
+use crate::vmm::{self, VMMOpts, run, Error};
 
-use crate::model::{AgentExecution, AgentExecutionStep, AgentExecutionFile};
+use crate::model::{RunRequest};
 
-#[derive(Debug)]
-pub enum Error {
-    VmmNew(vmm::Error),
 
-    VmmConfigure(vmm::Error),
-
-    VmmRun(vmm::Error),
-
-    BadAgentStatus,
-}
-
-struct VMMOpts {
-    /// Linux kernel path
-    kernel: String,
-    /// Number of virtual CPUs assigned to the guest
-    cpus: u8,
-    /// Memory amount (in MBytes) assigned to the guest
-    memory: u32,
-    /// Stdout console file path
-    console: Option<String>,
-    /// Path to the socket used for communication with the VMM
-    socket: Option<String>,
-}
-
-pub fn run_vmm(kernel_path: String) -> Result<String, Error> {
+pub fn run_code(config: web::Data<LambdoConfig>, request: web::Json<RunRequest>) -> Result<ResponseMessage, Error> {
+    let entrypoint = request.code[0].filename.clone();
     let socket_name = format!("/tmp/{}.sock", Uuid::new_v4().to_string());
 
     let socket_path = Path::new(socket_name.as_str());
@@ -40,20 +18,43 @@ pub fn run_vmm(kernel_path: String) -> Result<String, Error> {
         std::fs::remove_file(socket_path).unwrap();
     }
 
+    let language_settings = find_language(request.language.clone(),config.languages.clone()).unwrap();
+    let steps = generate_steps(language_settings.clone(), entrypoint.to_string());
+    let file = shared::FileModel {
+        filename: entrypoint.to_string(),
+        content: request.code[0].content.clone(),
+    };
+    let input_filename = "input.input";
+
+    let input = shared::FileModel {
+        filename: input_filename.to_string(),
+        content: request.input.clone(),
+    };
+
+    let request_data = RequestData {
+        id: Uuid::new_v4().to_string(),
+        steps: steps,
+        files: vec![file, input],
+    };
+
+    let request_message = RequestMessage {
+        r#type: shared::Type::Request,
+        code: shared::Code::Run,
+        data: request_data, 
+    };
+
     let opts: VMMOpts = VMMOpts {
-        kernel: kernel_path,
+        kernel: config.vmm.kernel.clone(),
         cpus: 1,
         memory: 1024,
         console: None,
         socket: Some(socket_name.clone()),
+        initramfs: Some(language_settings.initramfs.clone()),
     };
 
     let unix_listener = UnixListener::bind(socket_path).unwrap();
-
-    let listener_handler = listen(unix_listener);
-
+    let listener_handler = vmm::listen(unix_listener, request_message);
     run(opts)?;
-
     let response = listener_handler.join().unwrap();
 
     match std::fs::remove_file(socket_path) {
@@ -67,97 +68,35 @@ pub fn run_vmm(kernel_path: String) -> Result<String, Error> {
         }
     }
 
-    Ok(response)
+    Ok(parse_response(response))
 }
 
-fn run(opts: VMMOpts) -> Result<(), Error> {
-    let mut vmm = VMM::new().map_err(Error::VmmNew)?;
-    vmm.configure(
-        opts.cpus,
-        opts.memory,
-        &opts.kernel,
-        opts.console,
-        None,
-        None,
-        opts.socket,
-        true,
-    )
-    .map_err(Error::VmmConfigure)?;
-
-    // Run the VMM
-    vmm.run(true).map_err(Error::VmmRun)?;
-    Ok(())
+fn parse_response(response: String) -> ResponseMessage {
+    // remove first 8 characters of response
+    let json = &response[8..];
+    let response_message: ResponseMessage = serde_json::from_str(json).unwrap();
+    response_message
 }
 
-fn listen(unix_listener: UnixListener) -> JoinHandle<String> {
-    let listener_handler = spawn(move || {
-        // read from socket
-        let (mut stream, _) = unix_listener.accept().unwrap();
-        let mut response = "".to_string();
-
-        let stream_reader = BufReader::new(stream.try_clone().unwrap());
-
-        for line in stream_reader.lines() {
-            let parsed_line = parse_response(line.unwrap(), &mut stream).unwrap();
-            if parsed_line == "" {
-                continue;
-            }
-
-            response = format!("{}{}\n", response, parsed_line);
-            log::trace!("response line: {}", response);
+fn find_language(language: String,language_list: Vec<LambdoLanguageConfig> ) -> Result<LambdoLanguageConfig, Box<dyn std::error::Error>>
+{
+    for lang in language_list{
+        if lang.name == language{
+            return Ok(lang);
         }
-        log::debug!("response: {}", response);
-
-        response
-    });
-    listener_handler
-}
-
-fn parse_response(response: String, stream: &mut UnixStream) -> Result<String, Error> {
-    log::trace!("received response from agent: {}", response);
-    if response.contains("\"type\":\"status\"") {
-        // match the status code
-        let status_code = response
-            .split("\"code\":")
-            .nth(1)
-            .unwrap()
-            .split("}")
-            .nth(0)
-            .unwrap()
-            .split("\"")
-            .nth(1)
-            .unwrap();
-        log::debug!("received status code from agent: {}", status_code);
-
-        if status_code == "ready" {
-            send_instructions(stream);
-            Ok("".to_string())
-        } else {
-            Err(Error::BadAgentStatus)
-        }
-    } else {
-        Ok(response)
     }
+    Err("Language not found".into())
 }
 
-fn send_instructions(stream: &mut UnixStream) {
-    // create a new agent execution
-    let mut agent_execution = AgentExecution::new();
-    agent_execution.add_step(AgentExecutionStep {
-        command: "echo 'hello world!'".to_string(),
-        enable_output: true,
-    });
-    agent_execution.add_file(AgentExecutionFile::new("test.txt".to_string(), "hello world!".to_string()));
+fn generate_steps(language_settings: LambdoLanguageConfig, entrypoint: String) -> Vec<shared::RequestStep> {
+    let mut steps: Vec<shared::RequestStep> = Vec::new();
+    for step in language_settings.steps {
+        let command = step.command.replace("{{filename}}", entrypoint.as_str());
 
-    let agent_execution_json = serde_json::to_string(&agent_execution).unwrap();
-    let message = format_message(agent_execution_json.as_str());
-    log::debug!("sending agent execution json: {}", message);
-
-    // send the agent execution to the socket
-    let _ = stream.write_all(message.as_bytes()).unwrap();
-}
-
-fn format_message(message: &str) -> String {
-    let message_size = message.len();
-    format!("{:0>8}{}", message_size, message)
+        steps.push(shared::RequestStep {
+            command,
+            enable_output: step.output.enabled
+        });
+    }
+    steps
 }
