@@ -32,9 +32,6 @@ pub enum Code {
     /// Agent is ready to communicate
     #[serde(rename = "ready")]
     Ready,
-    // Error during the execution
-    #[serde(rename = "error")]
-    Error,
 }
 
 /// Represents a Status message
@@ -59,24 +56,6 @@ impl StatusMessage {
 impl Default for StatusMessage {
     fn default() -> Self {
         Self::new(Code::Ready)
-    }
-}
-
-/// Represents an Error message
-#[derive(Deserialize, Serialize, Debug)]
-pub struct ErrorMessage {
-    pub r#type: Type,
-    pub code: Code,
-    pub message: String,
-}
-
-impl ErrorMessage {
-    pub fn new(message: String) -> ErrorMessage {
-        ErrorMessage {
-            r#type: Type::Response,
-            code: Code::Error,
-            message,
-        }
     }
 }
 
