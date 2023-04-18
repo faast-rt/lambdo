@@ -13,6 +13,8 @@ FROM alpine:latest
 
 WORKDIR /etc/lambdo
 
+RUN apk add qemu-system-x86_64 libvirt libvirt-daemon dbus polkit qemu-img
+
 COPY --from=build /app/target/release/lambdo .
 
 CMD ["./lambdo"]

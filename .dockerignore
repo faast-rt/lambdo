@@ -2,3 +2,9 @@
 Cargo.lock
 target/
 examples/
+.gitingore
+.gitmodules
+docker-compose.yml
+Dockerfile
+LICENSE
+README.md
