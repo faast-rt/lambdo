@@ -4,7 +4,7 @@ use log::{debug, error, info, trace};
 use serialport::SerialPort;
 
 use super::comms::{Message, MESSAGE_SIZE_NB_BYTES};
-use super::model::{Code, RequestMessage, ResponseMessage, StatusMessage, ErrorMessage};
+use shared::{Code, RequestMessage, ResponseMessage, StatusMessage};
 
 pub struct Api {
     serial_path: String,
@@ -120,17 +120,17 @@ impl Api {
     }
 
     pub fn send_error_message(&mut self, error_message: String) -> Result<()> {
-        let error = ErrorMessage::new(error_message);
-        let error_json = serde_json::to_string(&error)
-            .map_err(|e| anyhow!("Failed to stringify error message : {}", e))?;
+        // let error = ErrorMessage::new(error_message);
+        // let error_json = serde_json::to_string(&error)
+        //     .map_err(|e| anyhow!("Failed to stringify error message : {}", e))?;
 
-            // Write the JSON to the serial port
-            self.write_to_serial(&error_json)?;
+        //     // Write the JSON to the serial port
+        //     self.write_to_serial(&error_json)?;
 
-            info!(
-                "Error message written to serial port: {:?}",
-                error
-            );
+            // info!(
+            //     "Error message written to serial port: {:?}",
+            //     error
+            // );
             Ok(()) 
     }
 
