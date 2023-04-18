@@ -1,8 +1,11 @@
-use super::comms::{Message, MESSAGE_SIZE_NB_BYTES};
 use anyhow::{anyhow, Result};
 use log::{debug, error, info, trace};
+
 use serialport::SerialPort;
-use shared::{Code, RequestMessage, ResponseMessage, StatusMessage};
+
+use super::comms::{Message, MESSAGE_SIZE_NB_BYTES};
+use super::model::{Code, RequestMessage, ResponseMessage, StatusMessage, ErrorMessage};
+
 pub struct Api {
     serial_path: String,
 
@@ -114,6 +117,21 @@ impl Api {
             response_message
         );
         Ok(())
+    }
+
+    pub fn send_error_message(&mut self, error_message: String) -> Result<()> {
+        let error = ErrorMessage::new(error_message);
+        let error_json = serde_json::to_string(&error)
+            .map_err(|e| anyhow!("Failed to stringify error message : {}", e))?;
+
+            // Write the JSON to the serial port
+            self.write_to_serial(&error_json)?;
+
+            info!(
+                "Error message written to serial port: {:?}",
+                error
+            );
+            Ok(()) 
     }
 
     pub fn write_to_serial(&mut self, data: &str) -> Result<()> {

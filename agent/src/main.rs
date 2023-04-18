@@ -1,5 +1,5 @@
 use agent_lib::{api::service::Api, config::AgentConfig, runner_engine::service::RunnerEngine};
-use anyhow::{anyhow, Result};
+use anyhow::Result;
 use clap::Parser;
 use log::{debug, info, trace};
 
@@ -43,19 +43,16 @@ fn main() -> Result<()> {
     api.send_status_message()?;
 
     // Read request message from serial port
-    let request_message = api.read_from_serial()?;
-
-    // Initialize RunnerEngine
+    let request_message = api.read_from_serial().map_err(|e| api.send_error_message(e.to_string())).unwrap();
     let mut runner_engine = RunnerEngine::new(request_message);
-
-    // Create the workspace
     runner_engine.create_workspace()?;
-
-    // Run the steps of the request message
-    let response_message = runner_engine.run().map_err(|e| anyhow!("{:?}", e))?;
-
-    // Send response message to serial port
-    api.send_response_message(response_message)?;
+    let response_message = runner_engine.run();
+    if let Err(error) = response_message {
+        api.send_error_message(error.to_string())?;
+    } else {
+        let response_message = response_message.unwrap();
+        api.send_response_message(response_message)?;
+    }
 
     info!("Stopping agent");
     Ok(())
