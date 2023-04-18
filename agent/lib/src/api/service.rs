@@ -1,11 +1,8 @@
+use super::comms::{Message, MESSAGE_SIZE_NB_BYTES};
 use anyhow::{anyhow, Result};
 use log::{debug, error, info, trace};
-
 use serialport::SerialPort;
-
-use super::comms::{Message, MESSAGE_SIZE_NB_BYTES};
-use super::model::{Code, RequestMessage, ResponseMessage, StatusMessage};
-
+use shared::{Code, RequestMessage, ResponseMessage, StatusMessage};
 pub struct Api {
     serial_path: String,
 

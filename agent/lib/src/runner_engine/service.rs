@@ -1,10 +1,8 @@
 use super::model::CodeReturn;
-use crate::{
-    api::model::{RequestMessage, ResponseData, ResponseMessage, ResponseStep},
-    runner_engine::model::FileModel,
-};
+use crate::runner_engine::model::FileModel;
 use anyhow::{anyhow, Ok, Result};
 use log::{error, info};
+use shared::{RequestMessage, ResponseData, ResponseMessage, ResponseStep};
 use std::io::Write;
 use std::{
     fs::File,
@@ -192,8 +190,8 @@ impl RunnerEngine {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::api::model::{FileModel, RequestData, RequestStep};
     use rand::random;
+    use shared::{FileModel, RequestData, RequestStep};
     use std::fs::File;
     use std::io::Read;
 

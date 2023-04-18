@@ -16,6 +16,7 @@ serde_yaml = "0.9"
 clap = { version="4.1.6", features=["derive"] }
 unshare = "0.7.0"
 thiserror = "1.0.32"
+shared = {   path = "../shared" }
 
 [lib]
 name = "agent_lib"
