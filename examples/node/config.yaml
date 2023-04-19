@@ -15,7 +15,7 @@ agent: # NOT IMPLEMENTED
   config: /etc/lambdo/agent.yaml
 languages:
   # The name of the language runtime
-  - name: node
+  - name: NODE
     # The version of the node runtime
     version: 12
     # The initramfs to use for the runtime
@@ -23,7 +23,7 @@ languages:
     # The steps to run the code
     steps:
       - name: Run the code
-        command: node {{fileName}}
+        command: /usr/local/bin/node {{filename}}
         # The output configuration
         output:
           # Whether to enable the output
