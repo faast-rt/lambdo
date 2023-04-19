@@ -4,11 +4,12 @@ services:
   app:
     build: .
     privileged: true
+    tty: true
     ports:
       - 3000:3000
     volumes:
       - ./examples/node/config.yaml:/etc/lambdo/config.yaml
-      - ./example/node/node-12.img:/var/lib/lambdo/initramfs/node-12.img
-      - ./example/kernel/vmlinux.bin:/var/lib/lambdo/kernel/vmlinux.bin
+      - ./examples/node/node-12.img:/var/lib/lambdo/initramfs/node-12.img
+      - ./examples/kernel/vmlinux.bin:/var/lib/lambdo/kernel/vmlinux.bin
     environment:
       - RUST_LOG=info
