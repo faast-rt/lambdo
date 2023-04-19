@@ -31,3 +31,11 @@ jobs:
         with:
           push: true
           tags: dopolytech2021/lambdo:latest
+
+      - name: Docker Hub Description
+        uses: peter-evans/dockerhub-description@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+          repository: dopolytech2021/lambdo
+          short-description: A Serverless runtime in Rust
