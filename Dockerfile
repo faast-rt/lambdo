@@ -11,6 +11,8 @@ RUN apk add --no-cache musl-dev && \
 # Step 2: Run
 FROM alpine:latest
 
+ENV RUST_LOG=info
+
 WORKDIR /etc/lambdo
 
 RUN apk add qemu-system-x86_64 libvirt libvirt-daemon dbus polkit qemu-img
