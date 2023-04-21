@@ -1,18 +1,18 @@
+use lumper::VMM;
 use shared::RequestMessage;
 use std::io::{BufRead, BufReader, Write};
 use std::os::unix::net::UnixStream;
 use std::rc::Rc;
 use std::thread::{spawn, JoinHandle};
 use std::{os::unix::net::UnixListener, u32};
-use vmm::VMM;
 
 #[derive(Debug)]
 pub enum Error {
-    VmmNew(vmm::Error),
+    VmmNew(lumper::Error),
 
-    VmmConfigure(vmm::Error),
+    VmmConfigure(lumper::Error),
 
-    VmmRun(vmm::Error),
+    VmmRun(lumper::Error),
 
     BadAgentStatus,
 }
@@ -43,6 +43,8 @@ pub fn run(opts: VMMOpts) -> Result<(), Error> {
         None,
         opts.socket,
         true,
+        None,
+        None,
     )
     .map_err(Error::VmmConfigure)?;
 
