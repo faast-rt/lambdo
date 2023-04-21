@@ -1,17 +1,22 @@
 use crate::{
-    config::{LambdoConfig, LambdoLanguageConfig},
+    config::LambdoLanguageConfig,
+    net,
+    state::{VMState, VMStateEnum},
     vmm::{self, run, Error, VMMOpts},
+    LambdoState,
 };
 use actix_web::web;
-use log::{debug, info, trace, warn};
+use cidr::Ipv4Inet;
+use log::{debug, error, info, trace, warn};
 use shared::{RequestData, RequestMessage, ResponseMessage};
-use std::{os::unix::net::UnixListener, path::Path};
+use std::{os::unix::net::UnixListener, path::Path, str::FromStr, sync::Arc};
+use tokio::sync::Mutex;
 use uuid::Uuid;
 
 use crate::model::RunRequest;
 
-pub fn run_code(
-    config: web::Data<LambdoConfig>,
+pub async fn run_code(
+    state: web::Data<Arc<Mutex<LambdoState>>>,
     request: web::Json<RunRequest>,
 ) -> Result<ResponseMessage, Error> {
     let entrypoint = request.code[0].filename.clone();
@@ -21,6 +26,10 @@ pub fn run_code(
     if std::fs::metadata(socket_path).is_ok() {
         std::fs::remove_file(socket_path).unwrap();
     }
+
+    let mut state = state.lock().await;
+
+    let config = state.config.clone();
 
     let language_settings =
         find_language(request.language.clone(), config.languages.clone()).unwrap();
@@ -42,11 +51,34 @@ pub fn run_code(
         files: vec![file, input],
     };
 
-    let request_message = RequestMessage {
-        r#type: shared::Type::Request,
-        code: shared::Code::Run,
-        data: request_data,
-    };
+    // Safe since we checked the validity of the address before
+    let host_ip = Ipv4Inet::from_str(&config.api.bridge_address).unwrap();
+
+    let ip = net::find_available_ip(
+        &host_ip,
+        &state
+            .vms
+            .iter()
+            .filter_map(|vm| {
+                debug!("VM {:?} has ip {:?}", vm.id, vm.vm_opts.ip);
+                if vm.vm_opts.ip.is_some() && !matches!(vm.state, VMStateEnum::Ended) {
+                    // Safe since we created the address safely
+                    Some(
+                        Ipv4Inet::from_str(vm.vm_opts.ip.as_ref().unwrap())
+                            .unwrap()
+                            .address(),
+                    )
+                } else {
+                    warn!("VM {:?} has no IP address", vm.id);
+                    None
+                }
+            })
+            .collect(),
+    )
+    .map_err(|e| {
+        error!("Error while finding available IP address: {:?}", e);
+        Error::NoIPAvalaible
+    })?;
 
     let opts: VMMOpts = VMMOpts {
         kernel: config.vmm.kernel.clone(),
@@ -54,12 +86,34 @@ pub fn run_code(
         memory: 1024,
         console: None,
         socket: Some(socket_name.clone()),
-        initramfs: Some(language_settings.initramfs),
+        initramfs: Some(language_settings.initramfs.clone()),
+        tap: Some(format!("tap-{}", request_data.id[0..8].to_string())),
+        ip: Some(ip.to_string()),
+        gateway: Some(host_ip.address().to_string()),
     };
+
+    let request_message = RequestMessage {
+        r#type: shared::Type::Request,
+        code: shared::Code::Run,
+        data: request_data,
+    };
+
+    trace!("Creating channel");
+    let channel = tokio::sync::mpsc::unbounded_channel();
+
+    trace!("Creating VMState");
+    let vm_state = VMState::new(
+        request_message.data.id.clone(),
+        opts.clone(),
+        request.into_inner(),
+        channel.0,
+    );
+
+    state.vms.push(vm_state);
 
     info!(
         "Starting execution request for {:?}, (language: {}, version: {})",
-        request_message.data.id, request.language, request.version
+        request_message.data.id, language_settings.name, language_settings.version
     );
     debug!("Launching VMM with options: {:?}", opts);
     trace!("Request message to VMM: {:?}", request_message);
