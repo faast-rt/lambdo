@@ -1,3 +1,4 @@
+use log::debug;
 use lumper::VMM;
 use shared::RequestMessage;
 use std::io::{BufRead, BufReader, Write};
@@ -5,6 +6,8 @@ use std::os::unix::net::UnixStream;
 use std::rc::Rc;
 use std::thread::{spawn, JoinHandle};
 use std::{os::unix::net::UnixListener, u32};
+
+use crate::net;
 
 #[derive(Debug)]
 pub enum Error {
@@ -15,9 +18,11 @@ pub enum Error {
     VmmRun(lumper::Error),
 
     BadAgentStatus,
+
+    NoIPAvalaible,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct VMMOpts {
     /// Linux kernel path
     pub kernel: String,
@@ -31,26 +36,36 @@ pub struct VMMOpts {
     pub socket: Option<String>,
     /// initramfs path
     pub initramfs: Option<String>,
+    // Tap interface name
+    pub tap: Option<String>,
+    // IP address
+    pub ip: Option<String>,
+    // Gateway
+    pub gateway: Option<String>,
 }
 
 pub fn run(opts: VMMOpts) -> Result<(), Error> {
     let mut vmm = VMM::new().map_err(Error::VmmNew)?;
+    let tap_name = opts.tap.clone();
     vmm.configure(
         opts.cpus,
         opts.memory,
         &opts.kernel,
         opts.console,
         opts.initramfs,
-        None,
+        tap_name,
         opts.socket,
         true,
-        None,
-        None,
+        opts.ip,
+        opts.gateway,
     )
     .map_err(Error::VmmConfigure)?;
 
+    debug!("Adding interface to bridge");
+    net::add_interface_to_bridge(&opts.tap.unwrap(), "lambdo0").unwrap();
     // Run the VMM
     vmm.run(true).map_err(Error::VmmRun)?;
+
     Ok(())
 }
 
