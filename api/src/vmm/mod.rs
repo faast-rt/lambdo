@@ -17,6 +17,7 @@ pub enum Error {
     BadAgentStatus,
 }
 
+#[derive(Debug)]
 pub struct VMMOpts {
     /// Linux kernel path
     pub kernel: String,

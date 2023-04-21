@@ -1,5 +1,5 @@
 use actix_web::{post, web, Responder};
-use log::{error, info};
+use log::{debug, error, info, trace};
 use shared::ResponseMessage;
 
 use crate::{
@@ -15,18 +15,23 @@ async fn run(
     run_body: web::Json<RunRequest>,
     config: web::Data<LambdoConfig>,
 ) -> Result<impl Responder, Box<dyn Error>> {
-    info!("Running code");
+    debug!(
+        "Received code execution request from http (language: {}, version: {})",
+        run_body.language, run_body.version
+    );
+    trace!("Request body: {:?}", run_body);
+
     let response = run_code(config, run_body);
-    info!("Execution finished");
 
     let response = match response {
         Ok(response) => {
-            info!("Response: {:?}", response);
+            info!("Execution request done for {:?}", response.data.id);
+            trace!("Response: {:?}", response);
             parse_response(response)
         }
         // for the moment just signal an internal server error
         Err(e) => {
-            error!("Error: {:?}", e);
+            error!("Error while executing code: {:?}", e);
             RunResponse {
                 status: 1,
                 stdout: "".to_string(),

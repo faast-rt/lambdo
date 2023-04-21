@@ -2,13 +2,13 @@ use serde::Deserialize;
 use serde::Serialize;
 use uuid::Uuid;
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Debug)]
 pub struct File {
     pub filename: String,
     pub content: String,
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Debug)]
 pub struct RunRequest {
     pub language: String,
     pub version: String,

@@ -3,7 +3,7 @@ use crate::{
     vmm::{self, run, Error, VMMOpts},
 };
 use actix_web::web;
-use log::warn;
+use log::{debug, info, trace, warn};
 use shared::{RequestData, RequestMessage, ResponseMessage};
 use std::{os::unix::net::UnixListener, path::Path};
 use uuid::Uuid;
@@ -56,6 +56,13 @@ pub fn run_code(
         socket: Some(socket_name.clone()),
         initramfs: Some(language_settings.initramfs.clone()),
     };
+
+    info!(
+        "Starting execution request for {:?}, (language: {}, version: {})",
+        request_message.data.id, request.language, request.version
+    );
+    debug!("Launching VMM with options: {:?}", opts);
+    trace!("Request message to VMM: {:?}", request_message);
 
     let unix_listener = UnixListener::bind(socket_path).unwrap();
     let listener_handler = vmm::listen(unix_listener, request_message);
