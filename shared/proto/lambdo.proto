@@ -1,0 +1,75 @@
+syntax = "proto3";
+package grpc_definitions;
+
+service LambdoApiService {
+    rpc Register (RegisterRequest) returns (RegisterResponse) {}
+    rpc Status (StatusMessage) returns (Empty) {}
+}
+
+service LambdoAgentService {
+    rpc Status (Empty) returns (StatusMessage) {}
+    rpc Execute (ExecuteRequest) returns (ExecuteResponse) {}
+}
+
+message Empty {
+}
+
+message RegisterResponse {
+    oneof response {
+        string id = 1;
+        string error = 2;
+    }
+}
+
+message RegisterRequest {
+    uint32 port = 1;
+}
+
+enum Code {
+    RUN = 0;
+    READY = 1;
+    ERROR = 2;
+}
+
+message FileModel {
+    string filename = 1;
+    string content = 2;
+}
+
+message StatusMessage {
+    string id = 1;
+    Code code = 2;
+}
+
+message ExecuteResponseStep {
+    string command = 1;
+    int32 exit_code = 2;
+    string stdout = 3;
+    string stderr = 4;
+}
+
+message ExecuteResponseData {
+    string id = 1;
+    repeated ExecuteResponseStep steps = 2;
+}
+
+message ExecuteResponse {
+    Code code = 1;
+    ExecuteResponseData data = 2;
+}
+
+message ExecuteRequestStep {
+    string command = 1;
+    bool enable_output = 2;
+}
+
+message ExecuteRequestData {
+    string id = 1;
+    repeated FileModel files = 2;
+    repeated ExecuteRequestStep steps = 3;
+}
+
+message ExecuteRequest {
+    string id = 1;
+    ExecuteRequestData data = 2;
+}
