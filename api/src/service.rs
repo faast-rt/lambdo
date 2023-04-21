@@ -1,6 +1,7 @@
 use crate::{
-    config::{LambdoConfig, LambdoLanguageConfig},
+    config::LambdoLanguageConfig,
     vmm::{self, run, Error, VMMOpts},
+    LambdoState,
 };
 use actix_web::web;
 use log::{debug, info, trace, warn};
@@ -11,7 +12,7 @@ use uuid::Uuid;
 use crate::model::RunRequest;
 
 pub fn run_code(
-    config: web::Data<LambdoConfig>,
+    state: web::Data<LambdoState>,
     request: web::Json<RunRequest>,
 ) -> Result<ResponseMessage, Error> {
     let entrypoint = request.code[0].filename.clone();
@@ -21,6 +22,8 @@ pub fn run_code(
     if std::fs::metadata(socket_path).is_ok() {
         std::fs::remove_file(socket_path).unwrap();
     }
+
+    let config = state.config.clone();
 
     let language_settings =
         find_language(request.language.clone(), config.languages.clone()).unwrap();
@@ -48,6 +51,11 @@ pub fn run_code(
         data: request_data,
     };
 
+    let mut vms = state.vms.lock().unwrap();
+    let vm_len = vms.len();
+    vms.push(vm_len);
+    trace!("VM number {}", vm_len);
+
     let opts: VMMOpts = VMMOpts {
         kernel: config.vmm.kernel.clone(),
         cpus: 1,
@@ -55,6 +63,9 @@ pub fn run_code(
         console: None,
         socket: Some(socket_name.clone()),
         initramfs: Some(language_settings.initramfs.clone()),
+        tap: Some(format!("tap{}", vm_len)),
+        ip: None,
+        gateway: None,
     };
 
     info!(

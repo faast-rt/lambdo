@@ -31,6 +31,12 @@ pub struct VMMOpts {
     pub socket: Option<String>,
     /// initramfs path
     pub initramfs: Option<String>,
+    // Tap interface name
+    pub tap: Option<String>,
+    // IP address
+    pub ip: Option<String>,
+    // Gateway
+    pub gateway: Option<String>,
 }
 
 pub fn run(opts: VMMOpts) -> Result<(), Error> {

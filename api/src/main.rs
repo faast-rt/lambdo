@@ -1,7 +1,18 @@
+pub mod config;
+pub mod controller;
+pub mod model;
+pub mod service;
+pub mod vmm;
+
+use config::LambdoConfig;
+use thiserror::Error;
+
 use actix_web::{web, App, HttpServer};
-use api::{config::LambdoConfig, controller::run};
 use clap::Parser;
 use log::{debug, info, trace};
+use std::sync::{Arc, Mutex};
+
+use crate::controller::run;
 
 #[derive(Parser)]
 #[clap(
@@ -13,6 +24,18 @@ pub struct LambdoOpts {
     /// Config file path
     #[clap(short, long, default_value = "/etc/lambdo/config.yaml")]
     config: String,
+}
+
+#[derive(Error, Debug)]
+pub enum LambdoError {
+    #[error(transparent)]
+    Other(#[from] anyhow::Error),
+    #[error("unknown lambdo error")]
+    Unknown,
+}
+pub struct LambdoState {
+    vms: Arc<Mutex<Vec<usize>>>,
+    config: LambdoConfig,
 }
 
 #[actix_web::main]
@@ -35,7 +58,10 @@ async fn main() -> std::io::Result<()> {
     info!("Starting server on {}:{}", host, port);
     HttpServer::new(move || {
         App::new()
-            .app_data(web::Data::new(config.clone()))
+            .app_data(web::Data::new(LambdoState {
+                vms: Arc::new(Mutex::new(Vec::new())),
+                config: config.clone(),
+            }))
             .service(run)
     })
     .bind((host, port))?

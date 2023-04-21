@@ -3,8 +3,8 @@ use log::{debug, error, info, trace};
 use shared::ResponseMessage;
 
 use crate::{
-    config::LambdoConfig,
     model::{RunRequest, RunResponse},
+    LambdoState,
 };
 use std::error::Error;
 
@@ -13,7 +13,7 @@ use crate::service::run_code;
 #[post("/run")]
 async fn run(
     run_body: web::Json<RunRequest>,
-    config: web::Data<LambdoConfig>,
+    state: web::Data<LambdoState>,
 ) -> Result<impl Responder, Box<dyn Error>> {
     debug!(
         "Received code execution request from http (language: {}, version: {})",
@@ -21,7 +21,7 @@ async fn run(
     );
     trace!("Request body: {:?}", run_body);
 
-    let response = run_code(config, run_body);
+    let response = run_code(state, run_body);
 
     let response = match response {
         Ok(response) => {
