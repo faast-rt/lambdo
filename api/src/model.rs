@@ -15,7 +15,7 @@ pub struct RunRequest {
     pub code: Vec<File>,
 }
 
-#[derive(Serialize)]
+#[derive(Serialize, Debug)]
 pub struct RunResponse {
     pub status: u8,
     pub stdout: String,

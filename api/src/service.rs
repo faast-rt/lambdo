@@ -6,7 +6,7 @@ use crate::{
     LambdoState,
 };
 use actix_web::web;
-use cidr::Ipv4Inet;
+use cidr::{IpInet, Ipv4Inet};
 use log::{debug, error, info, trace, warn};
 use shared::{RequestData, RequestMessage, ResponseMessage};
 use std::{os::unix::net::UnixListener, path::Path, str::FromStr, sync::Arc};
@@ -60,16 +60,11 @@ pub async fn run_code(
             .iter()
             .filter_map(|vm| {
                 debug!("VM {:?} has ip {:?}", vm.id, vm.vm_opts.ip);
-                if vm.vm_opts.ip.is_some() && !matches!(vm.state, VMStateEnum::Ended) {
-                    // Safe since we created the address safely
-                    Some(
-                        Ipv4Inet::from_str(vm.vm_opts.ip.as_ref().unwrap())
-                            .unwrap()
-                            .address(),
-                    )
-                } else {
-                    warn!("VM {:?} has no IP address", vm.id);
-                    None
+                match vm.vm_opts.ip {
+                    Some(IpInet::V4(ip)) if !matches!(vm.state, VMStateEnum::Ended) => {
+                        Some(ip.address())
+                    }
+                    _ => None,
                 }
             })
             .collect(),
@@ -87,7 +82,7 @@ pub async fn run_code(
         socket: Some(socket_name.clone()),
         initramfs: Some(language_settings.initramfs.clone()),
         tap: Some(format!("tap-{}", request_data.id[0..8].to_string())),
-        ip: Some(ip.to_string()),
+        ip: Some(IpInet::V4(ip)),
         gateway: Some(host_ip.address().to_string()),
     };
 

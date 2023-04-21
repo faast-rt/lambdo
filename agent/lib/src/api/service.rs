@@ -5,6 +5,8 @@ use log::{debug, error, info, trace};
 
 use serialport::SerialPort;
 
+use crate::api::grpc_definitions::{register_response::Response, RegisterRequest};
+
 use super::{
     comms::{Message, MESSAGE_SIZE_NB_BYTES},
     grpc_definitions::lambdo_api_service_client::LambdoApiServiceClient,
@@ -15,6 +17,7 @@ pub struct Api {
     serial_path: String,
     serial_port: Box<dyn SerialPort>, // So we don't open it multiple times
     client: LambdoApiServiceClient<tonic::transport::Channel>,
+    id: Option<String>,
 }
 
 impl Api {
@@ -37,6 +40,7 @@ impl Api {
                             .open()
                             .unwrap(),
                         client,
+                        id: None,
                     };
                 }
                 Err(e) => {
@@ -126,10 +130,37 @@ impl Api {
     }
 
     pub async fn send_status_message(&mut self) -> Result<()> {
+        debug!("Sending status message");
+        trace!("Sending to serial port: {}", self.serial_path);
         let status_message: StatusMessage = StatusMessage::new(Code::Ready);
         let status_message_json = serde_json::to_string(&status_message)
             .map_err(|e| anyhow!("Failed to serialize status message: {}", e))?;
         self.write_to_serial(&status_message_json)?;
+        trace!(
+            "Status message written to serial port: {:?}",
+            status_message
+        );
+
+        trace!("Registering with gRPC server");
+        let register_response = self
+            .client
+            .register(RegisterRequest {
+                ..Default::default()
+            })
+            .await?;
+        trace!("Register response: {:?}", register_response);
+
+        match register_response.into_inner().response.unwrap() {
+            Response::Error(error) => {
+                error!("Error registering with gRPC server: {}", error);
+                return Err(anyhow!("Error registering with gRPC server: {}", error));
+            }
+            Response::Id(id) => {
+                info!("Got ID {}", id);
+                self.id = Some(id);
+            }
+        }
+
         Ok(())
     }
 
