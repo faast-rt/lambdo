@@ -1,0 +1,60 @@
+syntax = "proto3";
+package grpc_definitions;
+
+service LambdoService {
+    rpc Status (StatusMessage) returns (StatusMessage) {}
+    rpc Request (RequestMessage) returns (ResponseMessage) {}
+}
+
+enum Code {
+    RUN = 0;
+    READY = 1;
+    ERROR = 2;
+}
+
+message FileModel {
+    string filename = 1;
+    string content = 2;
+}
+
+message StatusMessage {
+    Code code = 1;
+}
+
+message ErrorMessage {
+    Code code = 1;
+    string message = 2;
+}
+
+message ResponseStep {
+    string command = 1;
+    int32 exit_code = 2;
+    string stdout = 3;
+    string stderr = 4;
+}
+
+message ResponseData {
+    string id = 1;
+    repeated ResponseStep steps = 2;
+}
+
+message ResponseMessage {
+    Code code = 1;
+    ResponseData data = 2;
+}
+
+message RequestStep {
+    string command = 1;
+    bool enable_output = 2;
+}
+
+message RequestData {
+    string id = 1;
+    repeated FileModel files = 2;
+    repeated RequestStep steps = 3;
+}
+
+message RequestMessage {
+    Code code = 1;
+    RequestData data = 2;
+}
