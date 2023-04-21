@@ -1,10 +1,15 @@
 use anyhow::Result;
+use log::{debug, error, trace};
 use serde::{Deserialize, Serialize};
 use std::{
     fs::File,
     io::{self, BufReader},
 };
 use thiserror::Error;
+
+const fn default_remote_port() -> u16 {
+    50051
+}
 
 #[derive(Error, Debug)]
 pub enum AgentConfigError {
@@ -27,6 +32,18 @@ pub struct AgentConfig {
     pub kind: String,
     /// The serial configuration
     pub serial: SerialConfig,
+    /// The gRPC configuration
+    pub grpc: GRPCConfig,
+}
+
+#[derive(Serialize, Deserialize, PartialEq, Debug)]
+pub struct GRPCConfig {
+    /// The remote gRPC port
+    #[serde(default = "default_remote_port")]
+    pub remote_port: u16,
+    /// The remote gRPC host
+    #[serde(default = "default_gateway_ip")]
+    pub remote_host: String,
 }
 
 #[derive(Serialize, Deserialize, PartialEq, Debug)]
@@ -35,6 +52,16 @@ pub struct SerialConfig {
     pub path: String,
     /// The baud rate to use for the serial port
     pub baud_rate: u32,
+}
+
+fn default_gateway_ip() -> String {
+    trace!("getting default gateway ip address");
+    let gateway = default_net::get_default_gateway().unwrap_or_else(|e| {
+        error!("Failed to get default gateway ip address");
+        panic!("{}", e.to_string())
+    });
+    debug!("using default gateway ip address: {}", gateway.ip_addr);
+    gateway.ip_addr.to_string()
 }
 
 impl AgentConfig {

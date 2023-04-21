@@ -5,22 +5,40 @@ use log::{debug, error, info, trace};
 
 use serialport::SerialPort;
 
-use super::comms::{Message, MESSAGE_SIZE_NB_BYTES};
+use super::{
+    comms::{Message, MESSAGE_SIZE_NB_BYTES},
+    grpc_definitions::lambdo_service_client::LambdoServiceClient,
+};
 use shared::{Code, ErrorMessage, RequestMessage, ResponseMessage, StatusMessage};
 
 pub struct Api {
     serial_path: String,
-
     serial_port: Box<dyn SerialPort>, // So we don't open it multiple times
+    client: LambdoServiceClient<tonic::transport::Channel>,
 }
 
 impl Api {
-    pub async fn new(serial_path: String, serial_baud_rate: u32, gateway: IpAddr) -> Self {
+    pub async fn new(
+        serial_path: String,
+        serial_baud_rate: u32,
+        gprc_host: IpAddr,
+        port: u16,
+    ) -> Self {
+        info!("Connecting to gRPC server at {}:{}", gprc_host, port);
+        let client = LambdoServiceClient::connect(format!("http://{}:{}", gprc_host, port))
+            .await
+            .unwrap_or_else(|e| {
+                error!("Failed to connect to gRPC server");
+                panic!("{}", e.to_string())
+            });
+        info!("Connected to gRPC server at {}:{}", gprc_host, port);
+
         Self {
             serial_path: serial_path.clone(),
             serial_port: serialport::new(serial_path, serial_baud_rate)
                 .open()
                 .unwrap(),
+            client,
         }
     }
 
