@@ -1,18 +1,20 @@
 use crate::{
     config::LambdoLanguageConfig,
+    state::VMState,
     vmm::{self, run, Error, VMMOpts},
     LambdoState,
 };
 use actix_web::web;
 use log::{debug, info, trace, warn};
 use shared::{RequestData, RequestMessage, ResponseMessage};
-use std::{os::unix::net::UnixListener, path::Path};
+use std::{os::unix::net::UnixListener, path::Path, sync::Arc};
+use tokio::sync::Mutex;
 use uuid::Uuid;
 
 use crate::model::RunRequest;
 
-pub fn run_code(
-    state: web::Data<LambdoState>,
+pub async fn run_code(
+    state: web::Data<Arc<Mutex<LambdoState>>>,
     request: web::Json<RunRequest>,
 ) -> Result<ResponseMessage, Error> {
     let entrypoint = request.code[0].filename.clone();
@@ -23,6 +25,7 @@ pub fn run_code(
         std::fs::remove_file(socket_path).unwrap();
     }
 
+    let mut state = state.lock().await;
     let config = state.config.clone();
 
     let language_settings =
@@ -51,10 +54,8 @@ pub fn run_code(
         data: request_data,
     };
 
-    let mut vms = state.vms.lock().unwrap();
-    let vm_len = vms.len();
-    vms.push(vm_len);
-    trace!("VM number {}", vm_len);
+    // TODO: change that, just as a placeholder
+    let vm_len = state.vms.len();
 
     let opts: VMMOpts = VMMOpts {
         kernel: config.vmm.kernel.clone(),
@@ -68,9 +69,23 @@ pub fn run_code(
         gateway: None,
     };
 
+    trace!("Creating channel");
+    let channel = tokio::sync::mpsc::unbounded_channel();
+
+    // TODO: change that, just as a placeholder
+    trace!("Creating VMState");
+    let vm_state = VMState::new(
+        request_message.data.id.clone(),
+        opts.clone(),
+        request.into_inner(),
+        channel.0,
+    );
+
+    state.vms.push(vm_state);
+
     info!(
-        "Starting execution request for {:?}, (language: {}, version: {})",
-        request_message.data.id, request.language, request.version
+        "Starting execution for {:?}, (language: {}, version: {})",
+        request_message.data.id, language_settings.name, language_settings.version
     );
     debug!("Launching VMM with options: {:?}", opts);
     trace!("Request message to VMM: {:?}", request_message);

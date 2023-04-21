@@ -1,3 +1,5 @@
+pub mod vm_handler;
+
 use lumper::VMM;
 use shared::RequestMessage;
 use std::io::{BufRead, BufReader, Write};
@@ -17,7 +19,7 @@ pub enum Error {
     BadAgentStatus,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct VMMOpts {
     /// Linux kernel path
     pub kernel: String,

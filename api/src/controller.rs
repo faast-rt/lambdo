@@ -1,19 +1,20 @@
 use actix_web::{post, web, Responder};
 use log::{debug, error, info, trace};
 use shared::ResponseMessage;
+use tokio::sync::Mutex;
 
 use crate::{
     model::{RunRequest, RunResponse},
     LambdoState,
 };
-use std::error::Error;
+use std::{error::Error, sync::Arc};
 
 use crate::service::run_code;
 
 #[post("/run")]
 async fn run(
     run_body: web::Json<RunRequest>,
-    state: web::Data<LambdoState>,
+    state: web::Data<Arc<Mutex<LambdoState>>>,
 ) -> Result<impl Responder, Box<dyn Error>> {
     debug!(
         "Received code execution request from http (language: {}, version: {})",
@@ -23,7 +24,7 @@ async fn run(
 
     let response = run_code(state, run_body);
 
-    let response = match response {
+    let response = match response.await {
         Ok(response) => {
             info!("Execution request done for {:?}", response.data.id);
             trace!("Response: {:?}", response);
