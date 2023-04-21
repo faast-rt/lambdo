@@ -1,7 +1,7 @@
 use agent_lib::{api::service::Api, config::AgentConfig, runner_engine::service::RunnerEngine};
 use anyhow::Result;
 use clap::Parser;
-use log::{debug, info, trace};
+use log::{debug, error, info, trace};
 
 /// Agent CLI options
 #[derive(Parser)]
@@ -36,8 +36,15 @@ async fn main() -> Result<()> {
         config
     );
 
+    trace!("getting default gateway ip address");
+    let gateway = default_net::get_default_gateway().unwrap_or_else(|e| {
+        error!("Failed to get default gateway ip address");
+        panic!("{}", e.to_string())
+    });
+    debug!("default gateway ip address: {}", gateway.ip_addr);
+
     // Initialize API
-    let mut api = Api::new(config.serial.path, config.serial.baud_rate).await;
+    let mut api = Api::new(config.serial.path, config.serial.baud_rate, gateway.ip_addr).await;
 
     // Send status message to serial port
     api.send_status_message().await?;

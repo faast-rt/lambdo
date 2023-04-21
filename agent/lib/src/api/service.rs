@@ -1,3 +1,5 @@
+use std::net::IpAddr;
+
 use anyhow::{anyhow, Result};
 use log::{debug, error, info, trace};
 
@@ -13,7 +15,7 @@ pub struct Api {
 }
 
 impl Api {
-    pub async fn new(serial_path: String, serial_baud_rate: u32) -> Self {
+    pub async fn new(serial_path: String, serial_baud_rate: u32, gateway: IpAddr) -> Self {
         Self {
             serial_path: serial_path.clone(),
             serial_port: serialport::new(serial_path, serial_baud_rate)
