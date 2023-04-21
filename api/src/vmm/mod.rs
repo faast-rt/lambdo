@@ -1,9 +1,9 @@
+use shared::RequestMessage;
 use std::io::{BufRead, BufReader, Write};
 use std::os::unix::net::UnixStream;
 use std::rc::Rc;
 use std::thread::{spawn, JoinHandle};
 use std::{os::unix::net::UnixListener, u32};
-use shared::RequestMessage;
 use vmm::VMM;
 
 #[derive(Debug)]
@@ -52,7 +52,6 @@ pub fn run(opts: VMMOpts) -> Result<(), Error> {
 }
 
 pub fn listen(unix_listener: UnixListener, request_message: RequestMessage) -> JoinHandle<String> {
-
     let listener_handler = spawn(move || {
         // read from socket
         let (mut stream, _) = unix_listener.accept().unwrap();
@@ -77,7 +76,11 @@ pub fn listen(unix_listener: UnixListener, request_message: RequestMessage) -> J
     listener_handler
 }
 
-fn parse_response(response: String, stream: &mut UnixStream, request_message: Rc<RequestMessage>) -> Result<String, Error> {
+fn parse_response(
+    response: String,
+    stream: &mut UnixStream,
+    request_message: Rc<RequestMessage>,
+) -> Result<String, Error> {
     log::trace!("received response from agent: {}", response);
     if response.contains("\"type\":\"status\"") {
         // match the status code

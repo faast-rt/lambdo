@@ -1,18 +1,23 @@
 use actix_web::{post, web, Responder};
-use log::{info, error};
-use shared::{config::LambdoConfig, ResponseMessage};
+use log::{error, info};
+use shared::ResponseMessage;
 
-use crate::model::{RunRequest, RunResponse};
+use crate::{
+    config::LambdoConfig,
+    model::{RunRequest, RunResponse},
+};
 use std::error::Error;
 
 use crate::service::run_code;
 
 #[post("/run")]
-async fn run(run_body: web::Json<RunRequest>, config: web::Data<LambdoConfig>) -> Result<impl Responder, Box<dyn Error>> {
-
+async fn run(
+    run_body: web::Json<RunRequest>,
+    config: web::Data<LambdoConfig>,
+) -> Result<impl Responder, Box<dyn Error>> {
     info!("Running code");
     let response = run_code(config, run_body);
-    info!("Execution finished");    
+    info!("Execution finished");
 
     let response = match response {
         Ok(response) => {
@@ -32,7 +37,6 @@ async fn run(run_body: web::Json<RunRequest>, config: web::Data<LambdoConfig>) -
     Ok(web::Json(response))
 }
 
-
 fn parse_response(response: ResponseMessage) -> RunResponse {
     let mut stdout = String::new();
     let mut stderr = String::new();
@@ -44,7 +48,10 @@ fn parse_response(response: ResponseMessage) -> RunResponse {
     }
 
     RunResponse {
-        status: response.data.steps[response.data.steps.len() - 1].exit_code.try_into().unwrap(),
+        status: response.data.steps[response.data.steps.len() - 1]
+            .exit_code
+            .try_into()
+            .unwrap(),
         stdout,
         stderr,
     }

@@ -1,7 +1,6 @@
 use actix_web::{web, App, HttpServer};
-use api::controller::run;
+use api::{config::LambdoConfig, controller::run};
 use clap::Parser;
-use shared::config::LambdoConfig;
 use log::{debug, info, trace};
 
 #[derive(Parser)]

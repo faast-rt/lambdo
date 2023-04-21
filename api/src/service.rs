@@ -1,15 +1,19 @@
+use crate::{
+    config::{LambdoConfig, LambdoLanguageConfig},
+    vmm::{self, run, Error, VMMOpts},
+};
 use actix_web::web;
 use log::warn;
-use shared::{RequestMessage, RequestData, ResponseMessage};
-use shared::config::{LambdoLanguageConfig, LambdoConfig};
+use shared::{RequestData, RequestMessage, ResponseMessage};
 use std::{os::unix::net::UnixListener, path::Path};
 use uuid::Uuid;
-use crate::vmm::{self, VMMOpts, run, Error};
 
-use crate::model::{RunRequest};
+use crate::model::RunRequest;
 
-
-pub fn run_code(config: web::Data<LambdoConfig>, request: web::Json<RunRequest>) -> Result<ResponseMessage, Error> {
+pub fn run_code(
+    config: web::Data<LambdoConfig>,
+    request: web::Json<RunRequest>,
+) -> Result<ResponseMessage, Error> {
     let entrypoint = request.code[0].filename.clone();
     let socket_name = format!("/tmp/{}.sock", Uuid::new_v4().to_string());
 
@@ -18,7 +22,8 @@ pub fn run_code(config: web::Data<LambdoConfig>, request: web::Json<RunRequest>)
         std::fs::remove_file(socket_path).unwrap();
     }
 
-    let language_settings = find_language(request.language.clone(),config.languages.clone()).unwrap();
+    let language_settings =
+        find_language(request.language.clone(), config.languages.clone()).unwrap();
     let steps = generate_steps(language_settings.clone(), entrypoint.to_string());
     let file = shared::FileModel {
         filename: entrypoint.to_string(),
@@ -40,7 +45,7 @@ pub fn run_code(config: web::Data<LambdoConfig>, request: web::Json<RunRequest>)
     let request_message = RequestMessage {
         r#type: shared::Type::Request,
         code: shared::Code::Run,
-        data: request_data, 
+        data: request_data,
     };
 
     let opts: VMMOpts = VMMOpts {
@@ -78,24 +83,29 @@ fn parse_response(response: String) -> ResponseMessage {
     response_message
 }
 
-fn find_language(language: String,language_list: Vec<LambdoLanguageConfig> ) -> Result<LambdoLanguageConfig, Box<dyn std::error::Error>>
-{
-    for lang in language_list{
-        if lang.name == language{
+fn find_language(
+    language: String,
+    language_list: Vec<LambdoLanguageConfig>,
+) -> Result<LambdoLanguageConfig, Box<dyn std::error::Error>> {
+    for lang in language_list {
+        if lang.name == language {
             return Ok(lang);
         }
     }
     Err("Language not found".into())
 }
 
-fn generate_steps(language_settings: LambdoLanguageConfig, entrypoint: String) -> Vec<shared::RequestStep> {
+fn generate_steps(
+    language_settings: LambdoLanguageConfig,
+    entrypoint: String,
+) -> Vec<shared::RequestStep> {
     let mut steps: Vec<shared::RequestStep> = Vec::new();
     for step in language_settings.steps {
         let command = step.command.replace("{{filename}}", entrypoint.as_str());
 
         steps.push(shared::RequestStep {
             command,
-            enable_output: step.output.enabled
+            enable_output: step.output.enabled,
         });
     }
     steps

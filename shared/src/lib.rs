@@ -1,5 +1,3 @@
-pub mod config;
-
 use serde::{Deserialize, Serialize};
 
 /// Represents a file to be included in the workspace
