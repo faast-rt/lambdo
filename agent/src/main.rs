@@ -16,8 +16,8 @@ pub struct AgentOpts {
     config: String,
 }
 
-/// Main function
-fn main() -> Result<()> {
+#[tokio::main]
+async fn main() -> Result<()> {
     // Initialize logger
     env_logger::init();
 
@@ -37,21 +37,28 @@ fn main() -> Result<()> {
     );
 
     // Initialize API
-    let mut api = Api::new(config.serial.path, config.serial.baud_rate);
+    let mut api = Api::new(config.serial.path, config.serial.baud_rate).await;
 
     // Send status message to serial port
-    api.send_status_message()?;
+    api.send_status_message().await?;
 
     // Read request message from serial port
-    let request_message = api.read_from_serial().map_err(|e| api.send_error_message(e.to_string())).unwrap();
+    let request_message = match api.read_from_serial() {
+        Ok(request_message) => request_message,
+        Err(error) => {
+            api.send_error_message(error.to_string()).await?;
+            return Ok(());
+        }
+    };
+
     let mut runner_engine = RunnerEngine::new(request_message);
     runner_engine.create_workspace()?;
     let response_message = runner_engine.run();
     if let Err(error) = response_message {
-        api.send_error_message(error.to_string())?;
+        api.send_error_message(error.to_string()).await?;
     } else {
         let response_message = response_message.unwrap();
-        api.send_response_message(response_message)?;
+        api.send_response_message(response_message).await?;
     }
 
     info!("Stopping agent");
