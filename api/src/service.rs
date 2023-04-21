@@ -28,7 +28,6 @@ pub async fn run_code(
     }
 
     let mut state = state.lock().await;
-
     let config = state.config.clone();
 
     let language_settings =
@@ -110,9 +109,10 @@ pub async fn run_code(
     );
 
     state.vms.push(vm_state);
+    drop(state);
 
     info!(
-        "Starting execution request for {:?}, (language: {}, version: {})",
+        "Starting execution for {:?}, (language: {}, version: {})",
         request_message.data.id, language_settings.name, language_settings.version
     );
     debug!("Launching VMM with options: {:?}", opts);

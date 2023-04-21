@@ -43,16 +43,20 @@ pub struct LambdoVMMConfig {
 
 #[derive(Serialize, Deserialize, PartialEq, Debug, Clone)]
 pub struct LambdoApiConfig {
-    /// The port on which the API server will listen
-    pub host: String,
-    /// The host on which the API server will listen
-    pub port: u16,
     /// Bridge to bind to
     #[serde(default = "default_bridge")]
     pub bridge: String,
     /// Address of the bridge
     #[serde(default = "default_bridge_address")]
     pub bridge_address: String,
+    /// The host on which the API server will listen
+    pub web_host: String,
+    /// The port on which the API server will listen
+    pub web_port: u16,
+    /// The host on which the gRPC server will listen
+    pub grpc_host: String,
+    /// The port on which the gRPC server will listen
+    pub gprc_port: u16,
 }
 
 #[derive(Serialize, Deserialize, PartialEq, Debug, Clone)]

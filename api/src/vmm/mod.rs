@@ -1,3 +1,5 @@
+pub mod vm_handler;
+
 use log::debug;
 use lumper::VMM;
 use shared::RequestMessage;
