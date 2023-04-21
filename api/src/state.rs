@@ -1,3 +1,5 @@
+use std::fmt::Debug;
+
 use crate::{
     config::LambdoConfig,
     model::{RunRequest, RunResponse},
@@ -9,12 +11,14 @@ pub struct LambdoState {
     pub config: LambdoConfig,
 }
 
+#[derive(Debug)]
 pub struct VMState {
     pub id: String,
     pub state: VMStateEnum,
     pub vm_opts: VMMOpts,
     pub request: RunRequest,
     pub response: Option<RunResponse>,
+    pub remote_port: Option<u16>,
     pub timestamp: std::time::Instant,
     pub channel: tokio::sync::mpsc::UnboundedSender<()>,
 }
@@ -32,12 +36,14 @@ impl VMState {
             vm_opts,
             request,
             response: None,
+            remote_port: None,
             timestamp: std::time::Instant::now(),
             channel,
         }
     }
 }
 
+#[derive(Debug)]
 pub enum VMStateEnum {
     Waiting,
     Ready,

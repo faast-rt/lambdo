@@ -1,5 +1,6 @@
 pub mod vm_handler;
 
+use cidr::IpInet;
 use log::debug;
 use lumper::VMM;
 use shared::RequestMessage;
@@ -41,7 +42,7 @@ pub struct VMMOpts {
     // Tap interface name
     pub tap: Option<String>,
     // IP address
-    pub ip: Option<String>,
+    pub ip: Option<IpInet>,
     // Gateway
     pub gateway: Option<String>,
 }
@@ -58,7 +59,7 @@ pub fn run(opts: VMMOpts) -> Result<(), Error> {
         tap_name,
         opts.socket,
         true,
-        opts.ip,
+        Some(opts.ip.unwrap().to_string()),
         opts.gateway,
     )
     .map_err(Error::VmmConfigure)?;
