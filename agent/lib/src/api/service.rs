@@ -1,25 +1,53 @@
+use std::net::IpAddr;
+
 use anyhow::{anyhow, Result};
 use log::{debug, error, info, trace};
 
 use serialport::SerialPort;
 
-use super::comms::{Message, MESSAGE_SIZE_NB_BYTES};
+use super::{
+    comms::{Message, MESSAGE_SIZE_NB_BYTES},
+    grpc_definitions::lambdo_api_service_client::LambdoApiServiceClient,
+};
 use shared::{Code, ErrorMessage, RequestMessage, ResponseMessage, StatusMessage};
 
 pub struct Api {
     serial_path: String,
-
     serial_port: Box<dyn SerialPort>, // So we don't open it multiple times
+    client: LambdoApiServiceClient<tonic::transport::Channel>,
 }
 
 impl Api {
-    pub async fn new(serial_path: String, serial_baud_rate: u32) -> Self {
-        Self {
-            serial_path: serial_path.clone(),
-            serial_port: serialport::new(serial_path, serial_baud_rate)
-                .open()
-                .unwrap(),
+    pub async fn new(
+        serial_path: String,
+        serial_baud_rate: u32,
+        gprc_host: IpAddr,
+        port: u16,
+    ) -> Self {
+        info!("Connecting to gRPC server at {}:{}", gprc_host, port);
+
+        let mut counter = 0;
+        while counter < 10 {
+            match LambdoApiServiceClient::connect(format!("http://{}:{}", gprc_host, port)).await {
+                Ok(client) => {
+                    info!("Connected to gRPC server at {}:{}", gprc_host, port);
+                    return Self {
+                        serial_path: serial_path.clone(),
+                        serial_port: serialport::new(serial_path, serial_baud_rate)
+                            .open()
+                            .unwrap(),
+                        client,
+                    };
+                }
+                Err(e) => {
+                    error!("Failed to connect to gRPC server: {}", e);
+                    counter += 1;
+                    tokio::time::sleep(std::time::Duration::from_millis(500)).await;
+                }
+            }
         }
+
+        panic!("Failed to connect to gRPC server");
     }
 
     pub fn read_from_serial(&mut self) -> Result<RequestMessage> {

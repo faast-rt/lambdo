@@ -1,7 +1,9 @@
+use std::{net::IpAddr, str::FromStr};
+
 use agent_lib::{api::service::Api, config::AgentConfig, runner_engine::service::RunnerEngine};
 use anyhow::Result;
 use clap::Parser;
-use log::{debug, info, trace};
+use log::{debug, error, info, trace};
 
 /// Agent CLI options
 #[derive(Parser)]
@@ -31,16 +33,26 @@ async fn main() -> Result<()> {
     // Load config file
     let config = AgentConfig::load(options.config.as_str())?;
 
-    trace!(
-        "config file loaded successfully with content: {:#?}",
-        config
-    );
+    trace!("config loaded successfully with content: {:#?}", config);
+
+    // Get gateway IP address
+    let grpc_host = IpAddr::from_str(&config.grpc.remote_host).unwrap_or_else(|e| {
+        error!("Invalid IP address: {}", config.grpc.remote_host);
+        panic!("{}", e.to_string())
+    });
 
     // Initialize API
-    let mut api = Api::new(config.serial.path, config.serial.baud_rate).await;
+    let mut api = Api::new(
+        config.serial.path,
+        config.serial.baud_rate,
+        grpc_host,
+        config.grpc.remote_port,
+    )
+    .await;
 
     // Send status message to serial port
     api.send_status_message().await?;
+    info!("Successfully initialized agent");
 
     // Read request message from serial port
     let request_message = match api.read_from_serial() {
