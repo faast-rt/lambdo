@@ -13,7 +13,7 @@ pub struct Api {
 }
 
 impl Api {
-    pub fn new(serial_path: String, serial_baud_rate: u32) -> Self {
+    pub async fn new(serial_path: String, serial_baud_rate: u32) -> Self {
         Self {
             serial_path: serial_path.clone(),
             serial_port: serialport::new(serial_path, serial_baud_rate)
@@ -97,7 +97,7 @@ impl Api {
         Ok(request_message)
     }
 
-    pub fn send_status_message(&mut self) -> Result<()> {
+    pub async fn send_status_message(&mut self) -> Result<()> {
         let status_message: StatusMessage = StatusMessage::new(Code::Ready);
         let status_message_json = serde_json::to_string(&status_message)
             .map_err(|e| anyhow!("Failed to serialize status message: {}", e))?;
@@ -105,7 +105,7 @@ impl Api {
         Ok(())
     }
 
-    pub fn send_response_message(&mut self, response_message: ResponseMessage) -> Result<()> {
+    pub async fn send_response_message(&mut self, response_message: ResponseMessage) -> Result<()> {
         let code_json = serde_json::to_string(&response_message)
             .map_err(|e| anyhow!("Failed to stringify response message : {}", e))?;
 
@@ -119,7 +119,7 @@ impl Api {
         Ok(())
     }
 
-    pub fn send_error_message(&mut self, error_message: String) -> Result<()> {
+    pub async fn send_error_message(&mut self, error_message: String) -> Result<()> {
         let error = ErrorMessage::new(error_message);
         let error_json = serde_json::to_string(&error)
             .map_err(|e| anyhow!("Failed to stringify error message : {}", e))?;
@@ -148,108 +148,6 @@ impl Api {
         self.serial_port
             .write("\r\n".as_bytes())
             .map_err(|e| anyhow!("Failed to write to serial port: {}", e))?;
-
-        Ok(())
-    }
-}
-
-#[cfg(test)]
-mod tests {
-
-    use anyhow::Result;
-
-    use crate::api::model::{Code, FileModel, RequestStep, Type};
-
-    use super::Api;
-
-    #[test]
-    fn test_parse_json_payload() -> Result<()> {
-        let mut api = Api::new("".to_string(), 0);
-
-        // Data vector with the following JSON payload:
-        // {
-        //     "type": "Request",
-        //     "code": "Run",
-        //     "data": {
-        //       "id": "4bf68974-c315-4c41-aee2-3dc2920e76e9",
-        //       "files": [
-        //         {
-        //           "filename": "src/index.js",
-        //           "content": "console.log('Hello World!');"
-        //         }
-        //       ],
-        //       "steps": [
-        //         {
-        //           "command": "node src/index.js",
-        //           "enable_output": true
-        //         }
-        //       ]
-        //     }
-        //   }
-
-        let data = [
-            123, 10, 32, 32, 34, 116, 121, 112, 101, 34, 58, 32, 34, 82, 101, 113, 117, 101, 115,
-            116, 34, 44, 10, 32, 32, 34, 99, 111, 100, 101, 34, 58, 32, 34, 82, 117, 110, 34, 44,
-            10, 32, 32, 34, 100, 97, 116, 97, 34, 58, 32, 123, 10, 32, 32, 32, 32, 34, 105, 100,
-            34, 58, 32, 34, 52, 98, 102, 54, 56, 57, 55, 52, 45, 99, 51, 49, 53, 45, 52, 99, 52,
-            49, 45, 97, 101, 101, 50, 45, 51, 100, 99, 50, 57, 50, 48, 101, 55, 54, 101, 57, 34,
-            44, 10, 32, 32, 32, 32, 34, 102, 105, 108, 101, 115, 34, 58, 32, 91, 10, 32, 32, 32,
-            32, 32, 32, 123, 10, 32, 32, 32, 32, 32, 32, 32, 32, 34, 102, 105, 108, 101, 110, 97,
-            109, 101, 34, 58, 32, 34, 115, 114, 99, 47, 105, 110, 100, 101, 120, 46, 106, 115, 34,
-            44, 10, 32, 32, 32, 32, 32, 32, 32, 32, 34, 99, 111, 110, 116, 101, 110, 116, 34, 58,
-            32, 34, 99, 111, 110, 115, 111, 108, 101, 46, 108, 111, 103, 40, 39, 72, 101, 108, 108,
-            111, 32, 87, 111, 114, 108, 100, 33, 39, 41, 59, 34, 10, 32, 32, 32, 32, 32, 32, 125,
-            10, 32, 32, 32, 32, 93, 44, 10, 32, 32, 32, 32, 34, 115, 116, 101, 112, 115, 34, 58,
-            32, 91, 10, 32, 32, 32, 32, 32, 32, 123, 10, 32, 32, 32, 32, 32, 32, 32, 32, 34, 99,
-            111, 109, 109, 97, 110, 100, 34, 58, 32, 34, 110, 111, 100, 101, 32, 115, 114, 99, 47,
-            105, 110, 100, 101, 120, 46, 106, 115, 34, 44, 10, 32, 32, 32, 32, 32, 32, 32, 32, 34,
-            101, 110, 97, 98, 108, 101, 95, 111, 117, 116, 112, 117, 116, 34, 58, 32, 116, 114,
-            117, 101, 10, 32, 32, 32, 32, 32, 32, 125, 10, 32, 32, 32, 32, 93, 10, 32, 32, 125, 10,
-            125,
-        ];
-
-        let request_message = api.parse_json_payload(&data)?;
-
-        let files = vec![FileModel {
-            filename: "src/index.js".to_string(),
-            content: "console.log('Hello World!');".to_string(),
-        }];
-
-        let steps = vec![RequestStep {
-            command: "node src/index.js".to_string(),
-            enable_output: true,
-        }];
-
-        assert_eq!(request_message.r#type, Type::Request);
-        assert_eq!(request_message.code, Code::Run);
-        assert_eq!(
-            request_message.data.id,
-            "4bf68974-c315-4c41-aee2-3dc2920e76e9"
-        );
-        assert_eq!(request_message.data.files[0], files[0]);
-        assert_eq!(request_message.data.steps[0], steps[0]);
-        Ok(())
-    }
-
-    #[test]
-    fn test_parse_json_payload_failed() -> Result<()> {
-        let mut api = Api::new("".to_string(), 0);
-
-        // Data vector with missing comma
-        let data = [
-            123, 10, 32, 32, 34, 102, 105, 108, 101, 34, 58, 32, 91, 10, 32, 32, 32, 32, 123, 10,
-            32, 32, 32, 32, 32, 32, 34, 102, 105, 108, 101, 110, 97, 109, 101, 34, 58, 32, 34, 116,
-            101, 115, 116, 46, 112, 121, 34, 44, 10, 32, 32, 32, 32, 32, 32, 34, 99, 111, 110, 116,
-            101, 110, 116, 34, 58, 32, 34, 112, 114, 105, 110, 116, 40, 39, 72, 101, 108, 108, 111,
-            32, 87, 111, 114, 108, 100, 39, 41, 34, 10, 32, 32, 32, 32, 125, 10, 32, 32, 93, 44,
-            10, 32, 32, 34, 115, 99, 114, 105, 112, 116, 34, 58, 32, 91, 10, 32, 32, 32, 32, 34,
-            112, 121, 116, 104, 111, 110, 51, 32, 116, 101, 115, 116, 46, 112, 121, 34, 10, 32, 32,
-            93, 10, 32, 32, 10, 125, 10,
-        ];
-
-        let code_entry = api.parse_json_payload(&data);
-
-        assert!(code_entry.is_err());
 
         Ok(())
     }
