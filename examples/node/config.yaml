@@ -1,10 +1,14 @@
 apiVersion: lambdo.io/v1alpha1
 kind: Config
 api:
-  # The port on which the API server will listen
-  port: 3000
   # The host on which the API server will listen
-  host: 127.0.0.1
+  web_host: 0.0.0.0
+  # The port on which the API server will listen
+  web_port: 3000
+  # The host on which the gRPC server will listen
+  grpc_host: 0.0.0.0
+  # The port on which the gRPC server will listen
+  gprc_port: 50051
 vmm:
   # The kernel path to use for the vmm
   kernel: /var/lib/lambdo/kernel/vmlinux.bin
