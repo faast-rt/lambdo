@@ -1,9 +1,11 @@
 use std::net::IpAddr;
+use std::net::Ipv4Addr;
 use std::process::Command;
 use std::str::FromStr;
 
 use anyhow::anyhow;
 use anyhow::Result;
+use cidr::Ipv4Inet;
 use log::{debug, error, info, trace};
 use network_interface::NetworkInterface;
 use network_interface::NetworkInterfaceConfig;
@@ -119,4 +121,21 @@ pub fn add_interface_to_bridge(interface_name: &str, bridge_name: &str) -> Resul
         interface_name, bridge_name
     );
     Ok(())
+}
+
+pub fn find_available_ip(host_ip: &Ipv4Inet, used_ip: &Vec<Ipv4Addr>) -> Result<Ipv4Inet> {
+    debug!("looking for available ip in {}", host_ip);
+    trace!("used ip: {:?}", used_ip);
+    let mut ip = host_ip.clone();
+    ip.increment();
+
+    while used_ip.contains(&ip.address()) {
+        trace!("ip {} is already used, trying next one", ip);
+        if ip.increment() {
+            return Err(anyhow!("no available ip"));
+        }
+    }
+
+    info!("found available ip: {}", ip);
+    return Ok(ip);
 }
