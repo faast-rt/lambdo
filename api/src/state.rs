@@ -2,6 +2,7 @@ use std::fmt::Debug;
 
 use crate::{
     config::LambdoConfig,
+    grpc_definitions::lambdo_agent_service_client::LambdoAgentServiceClient,
     model::{RunRequest, RunResponse},
     vmm::VMMOpts,
 };
@@ -19,6 +20,7 @@ pub struct VMState {
     pub request: RunRequest,
     pub response: Option<RunResponse>,
     pub remote_port: Option<u16>,
+    pub client: Option<LambdoAgentServiceClient<tonic::transport::Channel>>,
     pub timestamp: std::time::Instant,
     pub channel: tokio::sync::mpsc::UnboundedSender<()>,
 }
@@ -37,6 +39,7 @@ impl VMState {
             request,
             response: None,
             remote_port: None,
+            client: None,
             timestamp: std::time::Instant::now(),
             channel,
         }
