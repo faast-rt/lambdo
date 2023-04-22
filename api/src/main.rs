@@ -1,5 +1,5 @@
 use actix_web::{web, App, HttpServer};
-use api::{config::LambdoConfig, controller::run};
+use api::{config::LambdoConfig, controller::run, net::setup_bridge};
 use clap::Parser;
 use log::{debug, info, trace};
 
@@ -28,6 +28,8 @@ async fn main() -> std::io::Result<()> {
         "config file loaded successfully with content: {:#?}",
         config
     );
+
+    setup_bridge(&config.api.bridge, &config.api.bridge_address).unwrap();
 
     let host = config.api.host.clone();
     let port = config.api.port.clone();

@@ -47,6 +47,12 @@ pub struct LambdoApiConfig {
     pub host: String,
     /// The host on which the API server will listen
     pub port: u16,
+    /// Bridge to bind to
+    #[serde(default = "default_bridge")]
+    pub bridge: String,
+    /// Address of the bridge
+    #[serde(default = "default_bridge_address")]
+    pub bridge_address: String,
 }
 
 #[derive(Serialize, Deserialize, PartialEq, Debug, Clone)]
@@ -85,6 +91,14 @@ pub struct LambdoLanguageStepOutputConfig {
     pub enabled: bool,
     /// Is the output a debug output ?
     pub debug: bool,
+}
+
+fn default_bridge() -> String {
+    String::from("lambdo0")
+}
+
+fn default_bridge_address() -> String {
+    String::from("192.168.10.1/24")
 }
 
 impl LambdoConfig {
