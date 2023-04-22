@@ -1,6 +1,7 @@
 pub mod config;
 pub mod controller;
 pub mod model;
+pub mod net;
 pub mod service;
 pub mod vmm;
 
