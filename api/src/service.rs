@@ -186,11 +186,9 @@ fn request_data_into_grpc_request(request: &RequestData, id: String) -> ExecuteR
 }
 
 fn execution_response_into_response_message(response: &ExecuteResponse) -> ResponseData {
-    // Safe since proto definition guarantees that data is present
-    let data = response.data.as_ref().unwrap();
     ResponseData {
-        id: data.id.clone(),
-        steps: data
+        id: response.id.clone(),
+        steps: response
             .steps
             .iter()
             .map(|s| shared::ResponseStep {

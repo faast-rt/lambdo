@@ -1,9 +1,11 @@
-use std::{net::IpAddr, str::FromStr};
+use std::{net::IpAddr, str::FromStr, sync::Arc};
 
-use log::{error, info, trace};
+use log::{debug, error, info, trace};
+use shared::{FileModel, RequestData, RequestStep};
+use tokio::sync::Mutex;
 use tonic::{Request, Response, Status};
 
-use crate::config::AgentConfig;
+use crate::{config::AgentConfig, runner_engine};
 
 use super::{
     client::Client,
@@ -15,7 +17,7 @@ use super::{
 
 pub struct LambdoAgentServer {
     pub config: AgentConfig,
-    pub client: Client,
+    pub client: Arc<Mutex<Client>>,
     pub id: String,
 }
 
@@ -60,7 +62,11 @@ impl LambdoAgentServer {
                 panic!("Failed to send ready status to gRPC server");
             });
 
-        Self { config, client, id }
+        Self {
+            config,
+            client: Arc::new(Mutex::new(client)),
+            id,
+        }
     }
 }
 
@@ -74,6 +80,76 @@ impl LambdoAgentService for LambdoAgentServer {
         &self,
         request: Request<ExecuteRequest>,
     ) -> Result<Response<ExecuteResponse>, Status> {
-        Err(Status::unimplemented("Not implemented yet"))
+        info!("Received request execution request");
+
+        // Safe unwrap because proto defines the field as required
+        let request = request.into_inner().data.unwrap();
+        let request_data = RequestData {
+            id: request.id.clone(),
+            files: request
+                .files
+                .iter()
+                .map(|f| FileModel {
+                    filename: f.filename.clone(),
+                    content: f.content.clone(),
+                })
+                .collect(),
+            steps: request
+                .steps
+                .iter()
+                .map(|s| RequestStep {
+                    command: s.command.clone(),
+                    enable_output: s.enable_output,
+                })
+                .collect(),
+        };
+        debug!("Received request: {:?}", request_data);
+
+        let mut runner_engine = runner_engine::service::RunnerEngine::new(request_data);
+        let mut self_client = self.client.lock().await;
+
+        if let Err(e) = runner_engine.create_workspace() {
+            error!("Failed to create workspace: {}", e);
+            self_client
+                .status(self.id.clone(), super::grpc_definitions::Code::Error)
+                .await
+                .unwrap_or_else(|e| {
+                    error!("Failed to send error status to gRPC server: {}", e);
+                    panic!("Failed to send error status to gRPC server");
+                });
+            return Err(Status::internal("Failed to create workspace"));
+        };
+
+        match runner_engine.run() {
+            Ok(response) => {
+                debug!("Response from runner engine: {:?}", response);
+
+                Ok(Response::new(ExecuteResponse {
+                    id: self.id.clone(),
+                    steps: response
+                        .data
+                        .steps
+                        .iter()
+                        .map(|s| crate::api::grpc_definitions::ExecuteResponseStep {
+                            command: s.command.clone(),
+                            stderr: s.stderr.clone(),
+                            stdout: s.stdout.clone().unwrap(),
+                            exit_code: s.exit_code,
+                        })
+                        .collect(),
+                }))
+            }
+            Err(e) => {
+                error!("Failed to run request: {}", e);
+                self_client
+                    .status(self.id.clone(), super::grpc_definitions::Code::Error)
+                    .await
+                    .unwrap_or_else(|e| {
+                        error!("Failed to send error status to gRPC server: {}", e);
+                        panic!("Failed to send error status to gRPC server");
+                    });
+                Err(Status::internal("Failed to run request"))
+            }
+        }
     }
 }

@@ -48,14 +48,9 @@ message ExecuteResponseStep {
     string stderr = 4;
 }
 
-message ExecuteResponseData {
+message ExecuteResponse {
     string id = 1;
     repeated ExecuteResponseStep steps = 2;
-}
-
-message ExecuteResponse {
-    Code code = 1;
-    ExecuteResponseData data = 2;
 }
 
 message ExecuteRequestStep {

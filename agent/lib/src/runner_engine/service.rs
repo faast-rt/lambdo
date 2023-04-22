@@ -2,7 +2,7 @@ use super::model::CodeReturn;
 use crate::runner_engine::model::FileModel;
 use anyhow::{anyhow, Ok, Result};
 use log::{error, info};
-use shared::{RequestMessage, ResponseData, ResponseMessage, ResponseStep};
+use shared::{RequestData, ResponseData, ResponseMessage, ResponseStep};
 use std::io::Write;
 use std::{
     fs::File,
@@ -15,7 +15,7 @@ const WORKSPACE_PATH: &str = "/tmp";
 
 /// The RunnerEngine API
 pub struct RunnerEngine {
-    pub request_message: RequestMessage,
+    pub request_message: RequestData,
 }
 
 impl RunnerEngine {
@@ -28,7 +28,7 @@ impl RunnerEngine {
     /// # Returns
     ///
     /// * `Self` - The new instance of RunnerEngine
-    pub fn new(request_message: RequestMessage) -> Self {
+    pub fn new(request_message: RequestData) -> Self {
         Self { request_message }
     }
 
@@ -44,7 +44,7 @@ impl RunnerEngine {
         let mut file_models: Vec<FileModel> = Vec::new();
         let root_path = PathBuf::from(WORKSPACE_PATH);
 
-        self.request_message.data.files.iter().for_each(|file| {
+        self.request_message.files.iter().for_each(|file| {
             let mut file_path = PathBuf::from(&file.filename);
             file_path.pop();
 
@@ -125,7 +125,7 @@ impl RunnerEngine {
         let mut steps: Vec<ResponseStep> = Vec::new();
 
         // For each commands in the request, run it
-        let steps_to_process = self.request_message.data.steps.clone();
+        let steps_to_process = self.request_message.steps.clone();
 
         for step in steps_to_process {
             let command = step.command.as_str();
@@ -147,7 +147,7 @@ impl RunnerEngine {
             steps.push(response_step);
         }
 
-        let data: ResponseData = ResponseData::new(self.request_message.data.id.clone(), steps);
+        let data: ResponseData = ResponseData::new(self.request_message.id.clone(), steps);
         let response_message = ResponseMessage::new(data);
 
         Ok(response_message)
@@ -235,9 +235,8 @@ mod tests {
             files,
             steps,
         );
-        let request_message = RequestMessage::new(request_data);
 
-        let mut api = RunnerEngine::new(request_message);
+        let mut api = RunnerEngine::new(request_data);
 
         let res = api.run().unwrap();
 
@@ -268,11 +267,8 @@ mod tests {
             files,
             steps,
         );
-        let request_message = RequestMessage::new(request_data);
 
-        RunnerEngine::new(request_message)
-            .create_workspace()
-            .unwrap();
+        RunnerEngine::new(request_data).create_workspace().unwrap();
 
         assert!(Path::new(&path).exists());
 
