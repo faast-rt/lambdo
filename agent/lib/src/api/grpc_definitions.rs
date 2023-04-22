@@ -54,19 +54,11 @@ pub struct ExecuteResponseStep {
 }
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
-pub struct ExecuteResponseData {
+pub struct ExecuteResponse {
     #[prost(string, tag = "1")]
     pub id: ::prost::alloc::string::String,
     #[prost(message, repeated, tag = "2")]
     pub steps: ::prost::alloc::vec::Vec<ExecuteResponseStep>,
-}
-#[allow(clippy::derive_partial_eq_without_eq)]
-#[derive(Clone, PartialEq, ::prost::Message)]
-pub struct ExecuteResponse {
-    #[prost(enumeration = "Code", tag = "1")]
-    pub code: i32,
-    #[prost(message, optional, tag = "2")]
-    pub data: ::core::option::Option<ExecuteResponseData>,
 }
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
