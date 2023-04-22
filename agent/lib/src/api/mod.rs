@@ -1,3 +1,3 @@
-pub mod comms;
+pub mod client;
 pub mod grpc_definitions;
-pub mod service;
+pub mod server;

@@ -11,6 +11,10 @@ const fn default_remote_port() -> u16 {
     50051
 }
 
+const fn default_local_port() -> u16 {
+    0
+}
+
 #[derive(Error, Debug)]
 pub enum AgentConfigError {
     #[error("cannot load config file")]
@@ -30,8 +34,6 @@ pub struct AgentConfig {
     pub apiVersion: String,
     /// The kind of the agent config file
     pub kind: String,
-    /// The serial configuration
-    pub serial: SerialConfig,
     /// The gRPC configuration
     #[serde(default = "default_grpc")]
     pub grpc: GRPCConfig,
@@ -45,14 +47,16 @@ pub struct GRPCConfig {
     /// The remote gRPC host
     #[serde(default = "default_gateway_ip")]
     pub remote_host: String,
+    /// The local gRPC port
+    #[serde(default = "default_local_port")]
+    pub local_port: u16,
+    /// The local gRPC host
+    #[serde(default = "default_local_host")]
+    pub local_host: String,
 }
 
-#[derive(Serialize, Deserialize, PartialEq, Debug)]
-pub struct SerialConfig {
-    /// The path to the serial port
-    pub path: String,
-    /// The baud rate to use for the serial port
-    pub baud_rate: u32,
+fn default_local_host() -> String {
+    "0.0.0.0".to_string()
 }
 
 fn default_gateway_ip() -> String {
@@ -69,6 +73,8 @@ fn default_grpc() -> GRPCConfig {
     GRPCConfig {
         remote_port: default_remote_port(),
         remote_host: default_gateway_ip(),
+        local_port: default_local_port(),
+        local_host: default_local_host(),
     }
 }
 
