@@ -93,3 +93,30 @@ pub fn setup_bridge(bridge_name: &str, bridge_address: &str) -> Result<()> {
     info!("bridge {} is ready", bridge_name);
     Ok(())
 }
+
+pub fn add_interface_to_bridge(interface_name: &str, bridge_name: &str) -> Result<()> {
+    debug!(
+        "adding interface {} to bridge {}",
+        interface_name, bridge_name
+    );
+
+    trace!("fetching interface id");
+    let interface_id = network_bridge::interface_id(interface_name)
+        .map_err(|e| anyhow!("error when fetching interface id: {}", e))?;
+
+    trace!("interface id: {}", interface_id);
+    network_bridge::add_interface_to_bridge(interface_id, bridge_name)
+        .map_err(|e| anyhow!("error when adding interface to bridge: {}", e))?;
+
+    debug!("bringing up interface");
+    Command::new("ip")
+        .args(&["link", "set", interface_name, "up"])
+        .output()
+        .map_err(|e| anyhow!("error when bringing up interface: {}", e))?;
+
+    info!(
+        "interface {} added to bridge {}",
+        interface_name, bridge_name
+    );
+    Ok(())
+}
