@@ -1,6 +1,6 @@
 use actix_web::{post, web, Responder};
 use log::{debug, error, info, trace};
-use shared::ResponseMessage;
+use shared::ResponseData;
 use tokio::sync::Mutex;
 
 use crate::{
@@ -26,7 +26,7 @@ async fn run(
 
     let response = match response {
         Ok(response) => {
-            info!("Execution request done for {:?}", response.data.id);
+            info!("Execution ended for {:?}", response.id);
             trace!("Response: {:?}", response);
             parse_response(response)
         }
@@ -40,13 +40,14 @@ async fn run(
             }
         }
     };
+
     Ok(web::Json(response))
 }
 
-fn parse_response(response: ResponseMessage) -> RunResponse {
+fn parse_response(response: ResponseData) -> RunResponse {
     let mut stdout = String::new();
     let mut stderr = String::new();
-    for step in response.data.steps.as_slice() {
+    for step in response.steps.as_slice() {
         if step.stdout.is_some() {
             stdout.push_str(step.stdout.as_ref().unwrap().as_str());
         }
@@ -54,7 +55,7 @@ fn parse_response(response: ResponseMessage) -> RunResponse {
     }
 
     RunResponse {
-        status: response.data.steps[response.data.steps.len() - 1]
+        status: response.steps[response.steps.len() - 1]
             .exit_code
             .try_into()
             .unwrap(),

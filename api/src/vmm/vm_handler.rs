@@ -43,6 +43,11 @@ impl VMHandler {
 
         info!("Connected to VM {}", vm.id);
         vm.client = Some(client);
+
+        debug!("Sending signal through channel");
+        vm.channel
+            .send(true)
+            .map_err(|e| anyhow!("Failed to send signal: {}", e))?;
         Ok(())
     }
 }
@@ -72,7 +77,7 @@ impl LambdoApiService for VMHandler {
             grpc_definitions::Code::Error => {
                 error!("VM {} reported an error", vm.id);
                 // TODO: Better error handling
-                vm.channel.send(()).unwrap();
+                vm.channel.send(false).unwrap();
                 vm.state = VMStateEnum::Ended;
             }
             grpc_definitions::Code::Run => {

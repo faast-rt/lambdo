@@ -1,15 +1,16 @@
 use crate::{
     config::LambdoLanguageConfig,
+    grpc_definitions::{ExecuteRequest, ExecuteRequestData, ExecuteResponse},
     net,
     state::{VMState, VMStateEnum},
-    vmm::{self, run, Error, VMMOpts},
+    vmm::{run, Error, VMMOpts},
     LambdoState,
 };
 use actix_web::web;
 use cidr::{IpInet, Ipv4Inet};
-use log::{debug, error, info, trace, warn};
-use shared::{RequestData, RequestMessage, ResponseMessage};
-use std::{os::unix::net::UnixListener, path::Path, str::FromStr, sync::Arc};
+use log::{debug, error, info, trace};
+use shared::{RequestData, ResponseData};
+use std::{str::FromStr, sync::Arc};
 use tokio::sync::Mutex;
 use uuid::Uuid;
 
@@ -18,17 +19,11 @@ use crate::model::RunRequest;
 pub async fn run_code(
     state: web::Data<Arc<Mutex<LambdoState>>>,
     request: web::Json<RunRequest>,
-) -> Result<ResponseMessage, Error> {
+) -> Result<ResponseData, Error> {
     let entrypoint = request.code[0].filename.clone();
-    let socket_name = format!("/tmp/{}.sock", Uuid::new_v4());
 
-    let socket_path = Path::new(socket_name.as_str());
-    if std::fs::metadata(socket_path).is_ok() {
-        std::fs::remove_file(socket_path).unwrap();
-    }
-
-    let mut state = state.lock().await;
-    let config = state.config.clone();
+    let mut lambdo_state = state.lock().await;
+    let config = lambdo_state.config.clone();
 
     let language_settings =
         find_language(request.language.clone(), config.languages.clone()).unwrap();
@@ -49,13 +44,14 @@ pub async fn run_code(
         steps,
         files: vec![file, input],
     };
+    trace!("Request message to VMM: {:?}", request_data);
 
     // Safe since we checked the validity of the address before
     let host_ip = Ipv4Inet::from_str(&config.api.bridge_address).unwrap();
 
     let ip = net::find_available_ip(
         &host_ip,
-        &state
+        &lambdo_state
             .vms
             .iter()
             .filter_map(|vm| {
@@ -79,64 +75,61 @@ pub async fn run_code(
         cpus: 1,
         memory: 1024,
         console: None,
-        socket: Some(socket_name.clone()),
+        socket: None,
         initramfs: Some(language_settings.initramfs.clone()),
         tap: Some(format!("tap-{}", request_data.id[0..8].to_string())),
         ip: Some(IpInet::V4(ip)),
         gateway: Some(host_ip.address().to_string()),
     };
 
-    let request_message = RequestMessage {
-        r#type: shared::Type::Request,
-        code: shared::Code::Run,
-        data: request_data,
-    };
-
     trace!("Creating channel");
-    let channel = tokio::sync::mpsc::unbounded_channel();
+    let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel();
+    let id = request_data.id.clone();
 
     trace!("Creating VMState");
-    let vm_state = VMState::new(
-        request_message.data.id.clone(),
-        opts.clone(),
-        request.into_inner(),
-        channel.0,
-    );
-
-    state.vms.push(vm_state);
-    drop(state);
+    let mut vm_state = VMState::new(id.clone(), opts.clone(), request_data, tx);
 
     info!(
         "Starting execution for {:?}, (language: {}, version: {})",
-        request_message.data.id, language_settings.name, language_settings.version
+        id, language_settings.name, language_settings.version
     );
     debug!("Launching VMM with options: {:?}", opts);
-    trace!("Request message to VMM: {:?}", request_message);
 
-    let unix_listener = UnixListener::bind(socket_path).unwrap();
-    let listener_handler = vmm::listen(unix_listener, request_message);
-    run(opts)?;
-    let response = listener_handler.join().unwrap();
+    vm_state.vm_task = Some(run(opts)?);
+    lambdo_state.vms.push(vm_state);
+    drop(lambdo_state);
 
-    match std::fs::remove_file(socket_path) {
-        Ok(_) => {}
-        Err(e) => {
-            warn!(
-                "Unable to close socket {} : {}",
-                socket_path.to_string_lossy(),
-                e
-            );
-        }
+    info!("Waiting for a connection from VMM {}", id);
+    rx.recv().await.ok_or(Error::VmNotFound)?;
+    debug!("Received message");
+
+    let mut state = state.lock().await;
+    let vm = if let Some(vm) = state.vms.iter_mut().find(|vm| vm.id == id) {
+        vm
+    } else {
+        error!("VM not found");
+        return Err(Error::VmNotFound);
+    };
+
+    if let VMStateEnum::Ended = vm.state {
+        error!("VM already ended");
+        return Err(Error::VmAlreadyEnded);
     }
+    info!("Running payload for {}", vm.id);
+    let response = vm
+        .client
+        .as_mut()
+        .unwrap()
+        .execute(request_data_into_grpc_request(&vm.request, vm.id.clone()))
+        .await
+        .map_err(|e| {
+            error!("Error while executing request: {:?}", e);
+            Error::GrpcError
+        })?
+        .into_inner();
+    debug!("Response from VMM: {:?}", response);
 
-    Ok(parse_response(response))
-}
-
-fn parse_response(response: String) -> ResponseMessage {
-    // remove first 8 characters of response
-    let json = &response[8..];
-    let response_message: ResponseMessage = serde_json::from_str(json).unwrap();
-    response_message
+    Ok(execution_response_into_response_message(&response))
 }
 
 fn find_language(
@@ -165,4 +158,47 @@ fn generate_steps(
         });
     }
     steps
+}
+
+fn request_data_into_grpc_request(request: &RequestData, id: String) -> ExecuteRequest {
+    ExecuteRequest {
+        id: id.clone(),
+        data: Some(ExecuteRequestData {
+            id: id.clone(),
+            files: request
+                .files
+                .iter()
+                .map(|f| crate::grpc_definitions::FileModel {
+                    filename: f.filename.clone(),
+                    content: f.content.clone(),
+                })
+                .collect(),
+            steps: request
+                .steps
+                .iter()
+                .map(|s| crate::grpc_definitions::ExecuteRequestStep {
+                    command: s.command.clone(),
+                    enable_output: s.enable_output.clone(),
+                })
+                .collect(),
+        }),
+    }
+}
+
+fn execution_response_into_response_message(response: &ExecuteResponse) -> ResponseData {
+    // Safe since proto definition guarantees that data is present
+    let data = response.data.as_ref().unwrap();
+    ResponseData {
+        id: data.id.clone(),
+        steps: data
+            .steps
+            .iter()
+            .map(|s| shared::ResponseStep {
+                command: s.command.clone(),
+                stdout: Some(s.stdout.clone()),
+                stderr: s.stderr.clone(),
+                exit_code: s.exit_code,
+            })
+            .collect(),
+    }
 }
