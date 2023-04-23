@@ -1,6 +1,6 @@
 use std::fmt::Debug;
 
-use crate::config::LambdoConfig;
+use crate::{config::LambdoConfig, model::LanguageSettings};
 
 use super::{
     grpc_definitions::{
@@ -31,6 +31,7 @@ pub struct VMState {
     pub state: VMStatus,
     pub vm_task: Option<tokio::task::JoinHandle<Result<(), super::vmm::Error>>>,
     pub vm_opts: VMMOpts,
+    pub language_settings: LanguageSettings,
     pub request: ExecuteRequest,
     pub response: Option<ExecuteResponse>,
     pub remote_port: Option<u16>,
@@ -44,6 +45,7 @@ impl VMState {
         id: String,
         vm_opts: VMMOpts,
         request: ExecuteRequest,
+        language_config: LanguageSettings,
         channel: tokio::sync::mpsc::UnboundedSender<bool>,
     ) -> Self {
         VMState {
@@ -51,6 +53,7 @@ impl VMState {
             state: VMStatus::Waiting,
             vm_task: None,
             vm_opts,
+            language_settings: language_config,
             request,
             response: None,
             remote_port: None,

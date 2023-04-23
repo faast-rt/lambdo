@@ -67,7 +67,13 @@ impl VMManager {
         let id = request.id.clone();
 
         trace!("Creating VMState");
-        let mut vm_state = VMState::new(id.clone(), opts.clone(), request.clone(), tx);
+        let mut vm_state = VMState::new(
+            id.clone(),
+            opts.clone(),
+            request.clone(),
+            language_settings.clone(),
+            tx,
+        );
 
         info!(
             "Starting execution for {:?}, (language: {}, version: {})",
