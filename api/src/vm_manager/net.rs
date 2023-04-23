@@ -149,9 +149,7 @@ impl VMManager {
             .filter_map(|vm| {
                 debug!("VM {:?} has ip {:?}", vm.id, vm.vm_opts.ip);
                 match vm.vm_opts.ip {
-                    Some(IpInet::V4(ip)) if !matches!(vm.state, VMStatus::Ended) => {
-                        Some(ip.address())
-                    }
+                    Some(IpInet::V4(ip)) if vm.state != VMStatus::Ended => Some(ip.address()),
                     _ => None,
                 }
             })

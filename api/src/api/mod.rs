@@ -47,7 +47,7 @@ fn parse_response(response: ExecuteResponse) -> RunResponse {
     let mut stdout = String::new();
     let mut stderr = String::new();
     for step in response.steps.as_slice() {
-        if step.stdout.is_empty() {
+        if !step.stdout.is_empty() {
             stdout.push_str(step.stdout.as_str());
         }
         stderr.push_str(step.stderr.as_str());

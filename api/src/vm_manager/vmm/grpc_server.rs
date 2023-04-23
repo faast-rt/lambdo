@@ -44,10 +44,6 @@ impl VMListener {
         info!("Connected to VM {}", vm.id);
         vm.client = Some(client);
 
-        debug!("Sending signal through channel");
-        vm.channel
-            .send(true)
-            .map_err(|e| anyhow!("Failed to send signal: {}", e))?;
         Ok(())
     }
 }
@@ -59,6 +55,7 @@ impl LambdoApiService for VMListener {
         debug!("Received status request: {:#?}", request);
 
         let mut lambdo_state = self.lambdo_state.lock().await;
+        let tx = lambdo_state.channel.0.clone();
 
         let vm = match lambdo_state.vms.iter_mut().find(|vm| vm.id.eq(&request.id)) {
             Some(vm) => vm,
@@ -70,14 +67,22 @@ impl LambdoApiService for VMListener {
         debug!("VM {} send a status", vm.id);
 
         match request.code() {
-            Code::Ready => self.vm_ready(vm).await.unwrap_or_else(|e| {
-                error!("Failed to handle VM ready status: {}", e);
-                vm.state = VMStatus::Ended;
-            }),
+            Code::Ready => {
+                debug!("Sending signal through channel");
+                if let Err(e) = tx.send(vm.id.clone()) {
+                    error!("Failed to send signal through channel: {}", e);
+                };
+                self.vm_ready(vm).await.unwrap_or_else(|e| {
+                    error!("Failed to handle VM ready status: {}", e);
+                    vm.state = VMStatus::Ended;
+                })
+            }
             Code::Error => {
                 error!("VM {} reported an error", vm.id);
                 // TODO: Better error handling
-                vm.channel.send(false).unwrap();
+                if let Err(e) = tx.send(vm.id.clone()) {
+                    error!("Failed to send signal through channel: {}", e);
+                };
                 vm.state = VMStatus::Ended;
             }
             Code::Run => {
@@ -113,7 +118,12 @@ impl LambdoApiService for VMListener {
             .vms
             .iter_mut()
             .filter(|vm| match vm.vm_opts.ip {
-                Some(ip) if ip.address().eq(&request.remote_addr().unwrap().ip()) => true,
+                Some(ip)
+                    if ip.address().eq(&request.remote_addr().unwrap().ip())
+                        && vm.state != VMStatus::Ended =>
+                {
+                    true
+                }
                 _ => false,
             })
             .collect::<Vec<&mut VMState>>();
