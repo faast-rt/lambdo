@@ -1,26 +1,18 @@
-pub mod vm_handler;
+pub mod grpc_definitions;
+pub mod grpc_server;
 
 use cidr::IpInet;
-use log::debug;
 use lumper::VMM;
 use tokio::task::JoinHandle;
-
-use crate::net;
 
 #[derive(Debug)]
 pub enum Error {
     VmmNew(lumper::Error),
-
     VmmConfigure(lumper::Error),
-
     VmmRun(lumper::Error),
-
     BadAgentStatus,
-
     NoIPAvalaible,
-
     VmNotFound,
-
     VmAlreadyEnded,
     GrpcError,
 }
@@ -64,8 +56,6 @@ pub fn run(opts: VMMOpts) -> Result<JoinHandle<Result<(), Error>>, Error> {
     )
     .map_err(Error::VmmConfigure)?;
 
-    debug!("Adding interface to bridge");
-    net::add_interface_to_bridge(&opts.tap.unwrap(), "lambdo0").unwrap();
     Ok(tokio::task::spawn_blocking(move || {
         vmm.run(true).map_err(Error::VmmRun)
     }))
