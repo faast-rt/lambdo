@@ -14,13 +14,19 @@ pub type LambdoStateRef = std::sync::Arc<tokio::sync::Mutex<LambdoState>>;
 pub struct LambdoState {
     pub vms: Vec<VMState>,
     pub config: LambdoConfig,
+    pub channel: (
+        tokio::sync::broadcast::Sender<String>,
+        tokio::sync::broadcast::Receiver<String>,
+    ),
 }
 
 impl LambdoState {
     pub fn new(config: LambdoConfig) -> Self {
+        let (sender, receiver) = tokio::sync::broadcast::channel(128);
         LambdoState {
             vms: Vec::new(),
             config,
+            channel: (sender, receiver),
         }
     }
 }
@@ -32,21 +38,20 @@ pub struct VMState {
     pub vm_task: Option<tokio::task::JoinHandle<Result<(), super::vmm::Error>>>,
     pub vm_opts: VMMOpts,
     pub language_settings: LanguageSettings,
-    pub request: ExecuteRequest,
+    pub request: Option<ExecuteRequest>,
     pub response: Option<ExecuteResponse>,
     pub remote_port: Option<u16>,
     pub client: Option<LambdoAgentServiceClient<tonic::transport::Channel>>,
     pub timestamp: std::time::Instant,
-    pub channel: tokio::sync::mpsc::UnboundedSender<bool>,
+    pub reserved: bool,
 }
 
 impl VMState {
     pub fn new(
         id: String,
         vm_opts: VMMOpts,
-        request: ExecuteRequest,
         language_config: LanguageSettings,
-        channel: tokio::sync::mpsc::UnboundedSender<bool>,
+        reserved: bool,
     ) -> Self {
         VMState {
             id,
@@ -54,17 +59,17 @@ impl VMState {
             vm_task: None,
             vm_opts,
             language_settings: language_config,
-            request,
+            request: None,
             response: None,
             remote_port: None,
             client: None,
             timestamp: std::time::Instant::now(),
-            channel,
+            reserved,
         }
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum VMStatus {
     Waiting,
     Ready,

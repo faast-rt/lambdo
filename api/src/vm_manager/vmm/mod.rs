@@ -1,6 +1,8 @@
 pub mod grpc_definitions;
 pub mod grpc_server;
 
+use std::{error::Error as STDError, fmt::Display};
+
 use cidr::IpInet;
 use lumper::VMM;
 use tokio::task::JoinHandle;
@@ -10,11 +12,30 @@ pub enum Error {
     VmmNew(lumper::Error),
     VmmConfigure(lumper::Error),
     VmmRun(lumper::Error),
+    NetSetupError(anyhow::Error),
     BadAgentStatus,
     NoIPAvalaible,
     VmNotFound,
     VmAlreadyEnded,
     GrpcError,
+}
+
+impl STDError for Error {}
+
+impl Display for Error {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Error::VmmNew(e) => write!(f, "Error while creating VMM: {:?}", e),
+            Error::VmmConfigure(e) => write!(f, "Error while configuring VMM: {:?}", e),
+            Error::VmmRun(e) => write!(f, "Error while running VMM: {:?}", e),
+            Error::NetSetupError(e) => write!(f, "Error while setting up network: {:?}", e),
+            Error::BadAgentStatus => write!(f, "Bad agent status"),
+            Error::NoIPAvalaible => write!(f, "No IP address available"),
+            Error::VmNotFound => write!(f, "VM not found"),
+            Error::VmAlreadyEnded => write!(f, "VM already ended"),
+            Error::GrpcError => write!(f, "GRPC error"),
+        }
+    }
 }
 
 #[derive(Debug, Clone)]
