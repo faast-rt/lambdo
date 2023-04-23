@@ -1,6 +1,6 @@
 use crate::{
     config::LambdoLanguageConfig,
-    grpc_definitions::{ExecuteRequest, ExecuteRequestData, ExecuteResponse},
+    grpc_definitions::{ExecuteRequest, ExecuteRequestStep, ExecuteResponse, FileModel},
     net,
     state::{VMState, VMStateEnum},
     vmm::{run, Error, VMMOpts},
@@ -9,7 +9,6 @@ use crate::{
 use actix_web::web;
 use cidr::{IpInet, Ipv4Inet};
 use log::{debug, error, info, trace};
-use shared::{RequestData, ResponseData};
 use std::{str::FromStr, sync::Arc};
 use tokio::sync::Mutex;
 use uuid::Uuid;
@@ -19,7 +18,7 @@ use crate::model::RunRequest;
 pub async fn run_code(
     state: web::Data<Arc<Mutex<LambdoState>>>,
     request: web::Json<RunRequest>,
-) -> Result<ResponseData, Error> {
+) -> Result<ExecuteResponse, Error> {
     let entrypoint = request.code[0].filename.clone();
 
     let mut lambdo_state = state.lock().await;
@@ -28,18 +27,18 @@ pub async fn run_code(
     let language_settings =
         find_language(request.language.clone(), config.languages.clone()).unwrap();
     let steps = generate_steps(language_settings.clone(), entrypoint.to_string());
-    let file = shared::FileModel {
+    let file = FileModel {
         filename: entrypoint.to_string(),
         content: request.code[0].content.clone(),
     };
     let input_filename = "input.input";
 
-    let input = shared::FileModel {
+    let input = FileModel {
         filename: input_filename.to_string(),
         content: request.input.clone(),
     };
 
-    let request_data = RequestData {
+    let request_data = ExecuteRequest {
         id: Uuid::new_v4().to_string(),
         steps: steps,
         files: vec![file, input],
@@ -87,7 +86,7 @@ pub async fn run_code(
     let id = request_data.id.clone();
 
     trace!("Creating VMState");
-    let mut vm_state = VMState::new(id.clone(), opts.clone(), request_data, tx);
+    let mut vm_state = VMState::new(id.clone(), opts.clone(), request_data.clone(), tx);
 
     info!(
         "Starting execution for {:?}, (language: {}, version: {})",
@@ -120,16 +119,18 @@ pub async fn run_code(
         .client
         .as_mut()
         .unwrap()
-        .execute(request_data_into_grpc_request(&vm.request, vm.id.clone()))
+        .execute(request_data)
         .await
         .map_err(|e| {
             error!("Error while executing request: {:?}", e);
             Error::GrpcError
         })?
         .into_inner();
+
+    vm.response = Some(response.clone());
     debug!("Response from VMM: {:?}", response);
 
-    Ok(execution_response_into_response_message(&response))
+    Ok(response)
 }
 
 fn find_language(
@@ -147,56 +148,15 @@ fn find_language(
 fn generate_steps(
     language_settings: LambdoLanguageConfig,
     entrypoint: String,
-) -> Vec<shared::RequestStep> {
-    let mut steps: Vec<shared::RequestStep> = Vec::new();
+) -> Vec<ExecuteRequestStep> {
+    let mut steps: Vec<ExecuteRequestStep> = Vec::new();
     for step in language_settings.steps {
         let command = step.command.replace("{{filename}}", entrypoint.as_str());
 
-        steps.push(shared::RequestStep {
+        steps.push(ExecuteRequestStep {
             command,
             enable_output: step.output.enabled,
         });
     }
     steps
-}
-
-fn request_data_into_grpc_request(request: &RequestData, id: String) -> ExecuteRequest {
-    ExecuteRequest {
-        id: id.clone(),
-        data: Some(ExecuteRequestData {
-            id: id.clone(),
-            files: request
-                .files
-                .iter()
-                .map(|f| crate::grpc_definitions::FileModel {
-                    filename: f.filename.clone(),
-                    content: f.content.clone(),
-                })
-                .collect(),
-            steps: request
-                .steps
-                .iter()
-                .map(|s| crate::grpc_definitions::ExecuteRequestStep {
-                    command: s.command.clone(),
-                    enable_output: s.enable_output.clone(),
-                })
-                .collect(),
-        }),
-    }
-}
-
-fn execution_response_into_response_message(response: &ExecuteResponse) -> ResponseData {
-    ResponseData {
-        id: response.id.clone(),
-        steps: response
-            .steps
-            .iter()
-            .map(|s| shared::ResponseStep {
-                command: s.command.clone(),
-                stdout: Some(s.stdout.clone()),
-                stderr: s.stderr.clone(),
-                exit_code: s.exit_code,
-            })
-            .collect(),
-    }
 }

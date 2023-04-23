@@ -1,6 +1,8 @@
+#[derive(serde::Deserialize, serde::Serialize)]
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct Empty {}
+#[derive(serde::Deserialize, serde::Serialize)]
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct RegisterResponse {
@@ -9,6 +11,8 @@ pub struct RegisterResponse {
 }
 /// Nested message and enum types in `RegisterResponse`.
 pub mod register_response {
+    #[derive(serde::Deserialize, serde::Serialize)]
+    #[serde(rename_all = "snake_case")]
     #[allow(clippy::derive_partial_eq_without_eq)]
     #[derive(Clone, PartialEq, ::prost::Oneof)]
     pub enum Response {
@@ -18,12 +22,14 @@ pub mod register_response {
         Error(::prost::alloc::string::String),
     }
 }
+#[derive(serde::Deserialize, serde::Serialize)]
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct RegisterRequest {
     #[prost(uint32, tag = "1")]
     pub port: u32,
 }
+#[derive(serde::Deserialize, serde::Serialize)]
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct FileModel {
@@ -32,6 +38,7 @@ pub struct FileModel {
     #[prost(string, tag = "2")]
     pub content: ::prost::alloc::string::String,
 }
+#[derive(serde::Deserialize, serde::Serialize)]
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct StatusMessage {
@@ -40,6 +47,7 @@ pub struct StatusMessage {
     #[prost(enumeration = "Code", tag = "2")]
     pub code: i32,
 }
+#[derive(serde::Deserialize, serde::Serialize)]
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct ExecuteResponseStep {
@@ -52,6 +60,7 @@ pub struct ExecuteResponseStep {
     #[prost(string, tag = "4")]
     pub stderr: ::prost::alloc::string::String,
 }
+#[derive(serde::Deserialize, serde::Serialize)]
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct ExecuteResponse {
@@ -60,6 +69,7 @@ pub struct ExecuteResponse {
     #[prost(message, repeated, tag = "2")]
     pub steps: ::prost::alloc::vec::Vec<ExecuteResponseStep>,
 }
+#[derive(serde::Deserialize, serde::Serialize)]
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct ExecuteRequestStep {
@@ -68,23 +78,16 @@ pub struct ExecuteRequestStep {
     #[prost(bool, tag = "2")]
     pub enable_output: bool,
 }
+#[derive(serde::Deserialize, serde::Serialize)]
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
-pub struct ExecuteRequestData {
+pub struct ExecuteRequest {
     #[prost(string, tag = "1")]
     pub id: ::prost::alloc::string::String,
     #[prost(message, repeated, tag = "2")]
     pub files: ::prost::alloc::vec::Vec<FileModel>,
     #[prost(message, repeated, tag = "3")]
     pub steps: ::prost::alloc::vec::Vec<ExecuteRequestStep>,
-}
-#[allow(clippy::derive_partial_eq_without_eq)]
-#[derive(Clone, PartialEq, ::prost::Message)]
-pub struct ExecuteRequest {
-    #[prost(string, tag = "1")]
-    pub id: ::prost::alloc::string::String,
-    #[prost(message, optional, tag = "2")]
-    pub data: ::core::option::Option<ExecuteRequestData>,
 }
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, ::prost::Enumeration)]
 #[repr(i32)]

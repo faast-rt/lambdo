@@ -1,8 +1,8 @@
 use super::model::CodeReturn;
+use crate::api::grpc_definitions::{ExecuteRequest, ExecuteResponse, ExecuteResponseStep};
 use crate::runner_engine::model::FileModel;
 use anyhow::{anyhow, Ok, Result};
 use log::{error, info};
-use shared::{RequestData, ResponseData, ResponseMessage, ResponseStep};
 use std::io::Write;
 use std::{
     fs::File,
@@ -15,7 +15,7 @@ const WORKSPACE_PATH: &str = "/tmp";
 
 /// The RunnerEngine API
 pub struct RunnerEngine {
-    pub request_message: RequestData,
+    pub request_message: ExecuteRequest,
 }
 
 impl RunnerEngine {
@@ -28,7 +28,7 @@ impl RunnerEngine {
     /// # Returns
     ///
     /// * `Self` - The new instance of RunnerEngine
-    pub fn new(request_message: RequestData) -> Self {
+    pub fn new(request_message: ExecuteRequest) -> Self {
         Self { request_message }
     }
 
@@ -120,9 +120,9 @@ impl RunnerEngine {
     /// # Returns
     ///
     /// * `Result<ResponseMessage>` - The response message or an error
-    pub fn run(&mut self) -> Result<ResponseMessage> {
+    pub fn run(&mut self) -> Result<ExecuteResponse> {
         info!("Running all steps");
-        let mut steps: Vec<ResponseStep> = Vec::new();
+        let mut steps: Vec<ExecuteResponseStep> = Vec::new();
 
         // For each commands in the request, run it
         let steps_to_process = self.request_message.steps.clone();
@@ -133,24 +133,26 @@ impl RunnerEngine {
 
             // Hide Stdout if enable_output is false
             let stdout = if step.enable_output {
-                Some(code_return.stdout)
+                code_return.stdout
             } else {
-                None
+                String::new()
             };
-            let response_step = ResponseStep::new(
-                command.to_string(),
-                code_return.exit_code,
+            let response_step = ExecuteResponseStep {
+                command: command.to_string(),
+                exit_code: code_return.exit_code,
                 stdout,
-                code_return.stderr,
-            );
+                stderr: code_return.stderr,
+            };
 
             steps.push(response_step);
         }
 
-        let data: ResponseData = ResponseData::new(self.request_message.id.clone(), steps);
-        let response_message = ResponseMessage::new(data);
+        let data = ExecuteResponse {
+            id: self.request_message.id.clone(),
+            steps,
+        };
 
-        Ok(response_message)
+        Ok(data)
     }
 
     /// Run a command
@@ -189,9 +191,10 @@ impl RunnerEngine {
 
 #[cfg(test)]
 mod tests {
+    use crate::api::grpc_definitions::{ExecuteRequestStep, FileModel};
+
     use super::*;
     use rand::random;
-    use shared::{FileModel, RequestData, RequestStep};
     use std::fs::File;
     use std::io::Read;
 
@@ -224,29 +227,26 @@ mod tests {
     #[test]
     fn workload_runs_correctly() {
         let files: Vec<FileModel> = Vec::new();
-        let mut steps: Vec<RequestStep> = Vec::new();
-        let step = RequestStep {
+        let mut steps: Vec<ExecuteRequestStep> = Vec::new();
+        let step = ExecuteRequestStep {
             command: "echo 'This is stdout' && echo 'This is stderr' >&2".to_string(),
             enable_output: true,
         };
         steps.push(step);
-        let request_data = RequestData::new(
-            "4bf68974-c315-4c41-aee2-3dc2920e76e9".to_string(),
+        let request_data = ExecuteRequest {
+            id: "4bf68974-c315-4c41-aee2-3dc2920e76e9".to_string(),
             files,
             steps,
-        );
+        };
 
         let mut api = RunnerEngine::new(request_data);
 
         let res = api.run().unwrap();
 
-        assert_eq!(res.data.steps[0].exit_code, 0);
-        assert_eq!(res.data.steps[0].stderr, "This is stderr\n");
-        assert_eq!(
-            res.data.steps[0].stdout.as_ref().unwrap(),
-            "This is stdout\n"
-        );
-        assert_eq!(res.data.id, "4bf68974-c315-4c41-aee2-3dc2920e76e9");
+        assert_eq!(res.steps[0].exit_code, 0);
+        assert_eq!(res.steps[0].stderr, "This is stderr\n");
+        assert_eq!(res.steps[0].stdout, "This is stdout\n");
+        assert_eq!(res.id, "4bf68974-c315-4c41-aee2-3dc2920e76e9");
     }
 
     /// Test the execution of a command with a workspace
@@ -261,12 +261,12 @@ mod tests {
             filename: path.clone(),
             content: "Hello World!".to_string(),
         }];
-        let steps: Vec<RequestStep> = Vec::new();
-        let request_data = RequestData::new(
-            "4bf68974-c315-4c41-aee2-3dc2920e76e9".to_string(),
+        let steps: Vec<ExecuteRequestStep> = Vec::new();
+        let request_data = ExecuteRequest {
+            id: "4bf68974-c315-4c41-aee2-3dc2920e76e9".to_string(),
             files,
             steps,
-        );
+        };
 
         RunnerEngine::new(request_data).create_workspace().unwrap();
 

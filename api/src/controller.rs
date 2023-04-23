@@ -1,9 +1,9 @@
 use actix_web::{post, web, Responder};
 use log::{debug, error, info, trace};
-use shared::ResponseData;
 use tokio::sync::Mutex;
 
 use crate::{
+    grpc_definitions::ExecuteResponse,
     model::{RunRequest, RunResponse},
     LambdoState,
 };
@@ -44,12 +44,12 @@ async fn run(
     Ok(web::Json(response))
 }
 
-fn parse_response(response: ResponseData) -> RunResponse {
+fn parse_response(response: ExecuteResponse) -> RunResponse {
     let mut stdout = String::new();
     let mut stderr = String::new();
     for step in response.steps.as_slice() {
-        if step.stdout.is_some() {
-            stdout.push_str(step.stdout.as_ref().unwrap().as_str());
+        if step.stdout.is_empty() {
+            stdout.push_str(step.stdout.as_str());
         }
         stderr.push_str(step.stderr.as_str());
     }

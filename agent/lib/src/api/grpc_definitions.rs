@@ -70,21 +70,13 @@ pub struct ExecuteRequestStep {
 }
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
-pub struct ExecuteRequestData {
+pub struct ExecuteRequest {
     #[prost(string, tag = "1")]
     pub id: ::prost::alloc::string::String,
     #[prost(message, repeated, tag = "2")]
     pub files: ::prost::alloc::vec::Vec<FileModel>,
     #[prost(message, repeated, tag = "3")]
     pub steps: ::prost::alloc::vec::Vec<ExecuteRequestStep>,
-}
-#[allow(clippy::derive_partial_eq_without_eq)]
-#[derive(Clone, PartialEq, ::prost::Message)]
-pub struct ExecuteRequest {
-    #[prost(string, tag = "1")]
-    pub id: ::prost::alloc::string::String,
-    #[prost(message, optional, tag = "2")]
-    pub data: ::core::option::Option<ExecuteRequestData>,
 }
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, ::prost::Enumeration)]
 #[repr(i32)]
