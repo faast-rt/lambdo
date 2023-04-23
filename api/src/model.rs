@@ -19,6 +19,7 @@ pub struct RunResponse {
     pub stderr: String,
 }
 
+#[derive(Serialize, Debug, Clone)]
 pub struct LanguageSettings {
     pub name: String,
     pub version: String,

@@ -13,7 +13,7 @@ use std::error::Error;
 #[post("/run")]
 async fn run(
     run_body: web::Json<RunRequest>,
-    state: web::Data<LambdoApiService>,
+    service: web::Data<LambdoApiService>,
 ) -> Result<impl Responder, Box<dyn Error>> {
     debug!(
         "Received code execution request from http (language: {}, version: {})",
@@ -21,7 +21,7 @@ async fn run(
     );
     trace!("Request body: {:?}", run_body);
 
-    let response = state.run_code(run_body.into_inner()).await;
+    let response = service.run_code(run_body.into_inner()).await;
 
     let response = match response {
         Ok(response) => {
