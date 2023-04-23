@@ -1,23 +1,35 @@
 use std::fmt::Debug;
 
-use crate::{
-    config::LambdoConfig,
+use crate::config::LambdoConfig;
+
+use super::{
     grpc_definitions::{
         lambdo_agent_service_client::LambdoAgentServiceClient, ExecuteRequest, ExecuteResponse,
     },
     vmm::VMMOpts,
 };
 
+pub type LambdoStateRef = std::sync::Arc<tokio::sync::Mutex<LambdoState>>;
+
 pub struct LambdoState {
     pub vms: Vec<VMState>,
     pub config: LambdoConfig,
 }
 
+impl LambdoState {
+    pub fn new(config: LambdoConfig) -> Self {
+        LambdoState {
+            vms: Vec::new(),
+            config,
+        }
+    }
+}
+
 #[derive(Debug)]
 pub struct VMState {
     pub id: String,
-    pub state: VMStateEnum,
-    pub vm_task: Option<tokio::task::JoinHandle<Result<(), crate::vmm::Error>>>,
+    pub state: VMStatus,
+    pub vm_task: Option<tokio::task::JoinHandle<Result<(), super::vmm::Error>>>,
     pub vm_opts: VMMOpts,
     pub request: ExecuteRequest,
     pub response: Option<ExecuteResponse>,
@@ -36,7 +48,7 @@ impl VMState {
     ) -> Self {
         VMState {
             id,
-            state: VMStateEnum::Waiting,
+            state: VMStatus::Waiting,
             vm_task: None,
             vm_opts,
             request,
@@ -50,7 +62,7 @@ impl VMState {
 }
 
 #[derive(Debug)]
-pub enum VMStateEnum {
+pub enum VMStatus {
     Waiting,
     Ready,
     RequestSent,

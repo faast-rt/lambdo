@@ -1,6 +1,6 @@
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     tonic_build::configure()
-        .out_dir("src/")
+        .out_dir("src/vm_manager/vmm")
         .message_attribute(".", "#[derive(serde::Deserialize, serde::Serialize)]")
         .type_attribute(
             ".grpc_definitions.RegisterResponse.response",
