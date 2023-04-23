@@ -54,18 +54,15 @@ async fn main() -> std::io::Result<()> {
     );
 
     info!("setting up");
-    let lambdo_state = Arc::new(Mutex::new(LambdoState {
-        vms: Vec::new(),
-        config: config.clone(),
-    }));
+    let lambdo_state = Arc::new(Mutex::new(LambdoState::new(config.clone())));
     let lambdo_state_clone = lambdo_state.clone();
 
     let api_service = LambdoApiService::new_with_state(lambdo_state)
         .await
         .map_err(|e| {
             error!("failed to set up API service: {}", e);
-            std::io::Error::new(std::io::ErrorKind::Other, e)
-        })?;
+        })
+        .unwrap();
 
     info!("everything is set up, starting servers");
 

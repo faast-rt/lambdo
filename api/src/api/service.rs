@@ -16,14 +16,14 @@ pub struct LambdoApiService {
 }
 
 impl LambdoApiService {
-    pub async fn new(config: LambdoConfig) -> Result<Self, anyhow::Error> {
+    pub async fn new(config: LambdoConfig) -> Result<Self, Error> {
         let state = crate::vm_manager::state::LambdoState::new(config.clone());
         let vm_manager =
             VMManager::new(std::sync::Arc::new(tokio::sync::Mutex::new(state))).await?;
         Ok(LambdoApiService { config, vm_manager })
     }
 
-    pub async fn new_with_state(state: LambdoStateRef) -> Result<Self, anyhow::Error> {
+    pub async fn new_with_state(state: LambdoStateRef) -> Result<Self, Error> {
         let config = state.lock().await.config.clone();
         let vm_manager = VMManager::new(state).await?;
         Ok(LambdoApiService { config, vm_manager })

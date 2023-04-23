@@ -1,4 +1,5 @@
 pub mod state;
+use uuid::Uuid;
 pub use vmm::grpc_definitions;
 pub use vmm::grpc_server::VMListener;
 pub use vmm::Error;
@@ -28,27 +29,44 @@ pub struct VMManager {
 }
 
 impl VMManager {
-    pub async fn new(state: LambdoStateRef) -> Result<Self, anyhow::Error> {
+    pub async fn new(state: LambdoStateRef) -> Result<Self, Error> {
         let vmm_manager = VMManager { state };
-        vmm_manager.setup_bridge().await?;
+        vmm_manager.setup_bridge().await.map_err(|e| {
+            error!("Error while setting up bridge: {:?}", e);
+            Error::NetSetupError(e)
+        })?;
+
+        let languages = vmm_manager.state.lock().await.config.languages.clone();
+
+        for language_settings in &languages {
+            vmm_manager
+                .run_vm(&language_settings.clone().into(), false)
+                .await
+                .map_err(|e| {
+                    error!("Error while setting up language: {:?}", e);
+                    e
+                })?;
+        }
+
         Ok(vmm_manager)
     }
 
-    pub async fn run_code(
+    pub async fn run_vm(
         &self,
-        request: ExecuteRequest,
-        language_settings: LanguageSettings,
-    ) -> Result<ExecuteResponse, Error> {
+        language_settings: &LanguageSettings,
+        reserved: bool,
+    ) -> Result<String, Error> {
         let ip = self.find_available_ip().await.map_err(|e| {
             error!("Error while finding available IP address: {:?}", e);
             Error::NoIPAvalaible
         })?;
+        let uuid = Uuid::new_v4().to_string();
 
         let mut state = self.state.lock().await;
         let config = &state.config;
         // Safe since we checked the validity of the address before
         let host_ip = Ipv4Inet::from_str(&config.api.bridge_address).unwrap();
-        let tap_name = format!("tap-{}", request.id[0..8].to_string());
+        let tap_name = format!("tap-{}", uuid[0..8].to_string());
 
         let opts: VMMOpts = VMMOpts {
             kernel: config.vmm.kernel.clone(),
@@ -62,22 +80,17 @@ impl VMManager {
             gateway: Some(host_ip.address().to_string()),
         };
 
-        trace!("Creating channel");
-        let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel();
-        let id = request.id.clone();
-
         trace!("Creating VMState");
         let mut vm_state = VMState::new(
-            id.clone(),
+            uuid.clone(),
             opts.clone(),
-            request.clone(),
             language_settings.clone(),
-            tx,
+            reserved,
         );
 
         info!(
             "Starting execution for {:?}, (language: {}, version: {})",
-            id, language_settings.name, language_settings.version
+            &uuid, language_settings.name, language_settings.version
         );
         debug!("Launching VMM with options: {:?}", opts);
         vm_state.vm_task = Some(run(opts)?);
@@ -89,24 +102,69 @@ impl VMManager {
                 Error::NoIPAvalaible
             })?;
         state.vms.push(vm_state);
-        drop(state);
 
-        info!("Waiting for a connection from VMM {}", id);
-        rx.recv().await.ok_or(Error::VmNotFound)?;
-        debug!("Received message");
+        Ok(uuid.clone())
+    }
 
+    pub async fn run_code(
+        &self,
+        request: ExecuteRequest,
+        language_settings: LanguageSettings,
+    ) -> Result<ExecuteResponse, Error> {
         let mut state = self.state.lock().await;
-        let vm = if let Some(vm) = state.vms.iter_mut().find(|vm| vm.id == id) {
+
+        debug!("Looking for VM with language: {}", language_settings.name);
+        let vm = if let Some(vm) = state.vms.iter_mut().find(|vm| {
+            vm.language_settings.name == language_settings.name
+                && vm.language_settings.version == language_settings.version
+                && !vm.reserved
+                && vm.state == VMStatus::Ready
+        }) {
+            debug!("Found VM {}", vm.id);
             vm
         } else {
-            error!("VM not found");
-            return Err(Error::VmNotFound);
+            debug!("No VM found, creating one");
+            let mut rx = state.channel.1.resubscribe();
+            drop(state);
+            let id = self.run_vm(&language_settings, true).await.map_err(|e| {
+                error!("Error while running VM: {:?}", e);
+                e
+            })?;
+
+            info!("Waiting for a connection from VMM {}", id);
+
+            let received_id = loop {
+                let r_id = rx.recv().await.map_err(|e| {
+                    error!("Error while waiting for VM to start: {:?}", e);
+                    Error::VmNotFound
+                })?;
+                if id != r_id {
+                    debug!(
+                        "Received message from another VM ({} vs {}), ignoring",
+                        id, r_id
+                    );
+                } else {
+                    break r_id;
+                }
+            };
+
+            state = self.state.lock().await;
+            state
+                .vms
+                .iter_mut()
+                .find(|vm| vm.id == received_id)
+                .unwrap()
         };
 
         if let VMStatus::Ended = vm.state {
             error!("VM already ended");
             return Err(Error::VmAlreadyEnded);
         }
+
+        vm.request = Some(request.clone());
+
+        vm.state = VMStatus::RequestSent;
+
         info!("Running payload for {}", vm.id);
         let response = vm
             .client
@@ -122,6 +180,8 @@ impl VMManager {
 
         vm.response = Some(response.clone());
         debug!("Response from VMM: {:?}", response);
+
+        vm.state = VMStatus::Ended;
 
         Ok(response)
     }
