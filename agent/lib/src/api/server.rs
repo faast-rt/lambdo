@@ -1,7 +1,6 @@
 use std::{net::IpAddr, str::FromStr, sync::Arc};
 
 use log::{debug, error, info, trace};
-use shared::{FileModel, RequestData, RequestStep};
 use tokio::sync::Mutex;
 use tonic::{Request, Response, Status};
 
@@ -82,30 +81,10 @@ impl LambdoAgentService for LambdoAgentServer {
     ) -> Result<Response<ExecuteResponse>, Status> {
         info!("Received request execution request");
 
-        // Safe unwrap because proto defines the field as required
-        let request = request.into_inner().data.unwrap();
-        let request_data = RequestData {
-            id: request.id.clone(),
-            files: request
-                .files
-                .iter()
-                .map(|f| FileModel {
-                    filename: f.filename.clone(),
-                    content: f.content.clone(),
-                })
-                .collect(),
-            steps: request
-                .steps
-                .iter()
-                .map(|s| RequestStep {
-                    command: s.command.clone(),
-                    enable_output: s.enable_output,
-                })
-                .collect(),
-        };
-        debug!("Received request: {:?}", request_data);
+        let request = request.into_inner();
+        debug!("Received request: {:?}", request);
 
-        let mut runner_engine = runner_engine::service::RunnerEngine::new(request_data);
+        let mut runner_engine = runner_engine::service::RunnerEngine::new(request);
         let mut self_client = self.client.lock().await;
 
         if let Err(e) = runner_engine.create_workspace() {
@@ -126,17 +105,7 @@ impl LambdoAgentService for LambdoAgentServer {
 
                 Ok(Response::new(ExecuteResponse {
                     id: self.id.clone(),
-                    steps: response
-                        .data
-                        .steps
-                        .iter()
-                        .map(|s| crate::api::grpc_definitions::ExecuteResponseStep {
-                            command: s.command.clone(),
-                            stderr: s.stderr.clone(),
-                            stdout: s.stdout.clone().unwrap(),
-                            exit_code: s.exit_code,
-                        })
-                        .collect(),
+                    steps: response.steps,
                 }))
             }
             Err(e) => {

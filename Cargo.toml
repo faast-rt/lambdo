@@ -1,2 +1,3 @@
 [workspace]
-members = ["api", "initramfs", "shared", "agent"]
+members = ["api", "initramfs", "agent"]
+default-members = ["api"]

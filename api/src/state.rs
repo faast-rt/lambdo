@@ -1,10 +1,11 @@
 use std::fmt::Debug;
 
-use shared::RequestData;
-
 use crate::{
-    config::LambdoConfig, grpc_definitions::lambdo_agent_service_client::LambdoAgentServiceClient,
-    model::RunResponse, vmm::VMMOpts,
+    config::LambdoConfig,
+    grpc_definitions::{
+        lambdo_agent_service_client::LambdoAgentServiceClient, ExecuteRequest, ExecuteResponse,
+    },
+    vmm::VMMOpts,
 };
 
 pub struct LambdoState {
@@ -18,8 +19,8 @@ pub struct VMState {
     pub state: VMStateEnum,
     pub vm_task: Option<tokio::task::JoinHandle<Result<(), crate::vmm::Error>>>,
     pub vm_opts: VMMOpts,
-    pub request: RequestData,
-    pub response: Option<RunResponse>,
+    pub request: ExecuteRequest,
+    pub response: Option<ExecuteResponse>,
     pub remote_port: Option<u16>,
     pub client: Option<LambdoAgentServiceClient<tonic::transport::Channel>>,
     pub timestamp: std::time::Instant,
@@ -30,7 +31,7 @@ impl VMState {
     pub fn new(
         id: String,
         vm_opts: VMMOpts,
-        request: RequestData,
+        request: ExecuteRequest,
         channel: tokio::sync::mpsc::UnboundedSender<bool>,
     ) -> Self {
         VMState {
