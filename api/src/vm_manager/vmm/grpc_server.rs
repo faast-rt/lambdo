@@ -1,32 +1,32 @@
 use std::sync::Arc;
 
+use super::grpc_definitions::{
+    lambdo_agent_service_client::LambdoAgentServiceClient,
+    lambdo_api_service_server::LambdoApiService, register_response, Code, Empty, RegisterRequest,
+    RegisterResponse, StatusMessage,
+};
 use anyhow::anyhow;
 use log::{debug, error, info, trace};
 use tokio::sync::Mutex;
 use tonic::{Request, Response, Status};
 
 use crate::{
-    grpc_definitions::{
-        self, lambdo_agent_service_client::LambdoAgentServiceClient,
-        lambdo_api_service_server::LambdoApiService, Empty, RegisterRequest, RegisterResponse,
-        StatusMessage,
-    },
-    state::{VMState, VMStateEnum},
+    vm_manager::state::{VMState, VMStatus},
     LambdoState,
 };
 
-pub struct VMHandler {
+pub struct VMListener {
     lambdo_state: Arc<Mutex<LambdoState>>,
 }
 
-impl VMHandler {
+impl VMListener {
     pub fn new(lambdo_state: Arc<Mutex<LambdoState>>) -> Self {
-        VMHandler { lambdo_state }
+        VMListener { lambdo_state }
     }
 
     pub async fn vm_ready(&self, vm: &mut VMState) -> Result<(), anyhow::Error> {
         debug!("VM {} is ready", vm.id);
-        vm.state = VMStateEnum::Ready;
+        vm.state = VMStatus::Ready;
 
         // Safe, since we created the VMState with an IP
         let ip = vm.vm_opts.ip.unwrap().address();
@@ -53,7 +53,7 @@ impl VMHandler {
 }
 
 #[tonic::async_trait]
-impl LambdoApiService for VMHandler {
+impl LambdoApiService for VMListener {
     async fn status(&self, request: Request<StatusMessage>) -> Result<Response<Empty>, Status> {
         let request = request.into_inner();
         debug!("Received status request: {:#?}", request);
@@ -70,17 +70,17 @@ impl LambdoApiService for VMHandler {
         debug!("VM {} send a status", vm.id);
 
         match request.code() {
-            grpc_definitions::Code::Ready => self.vm_ready(vm).await.unwrap_or_else(|e| {
+            Code::Ready => self.vm_ready(vm).await.unwrap_or_else(|e| {
                 error!("Failed to handle VM ready status: {}", e);
-                vm.state = VMStateEnum::Ended;
+                vm.state = VMStatus::Ended;
             }),
-            grpc_definitions::Code::Error => {
+            Code::Error => {
                 error!("VM {} reported an error", vm.id);
                 // TODO: Better error handling
                 vm.channel.send(false).unwrap();
-                vm.state = VMStateEnum::Ended;
+                vm.state = VMStatus::Ended;
             }
-            grpc_definitions::Code::Run => {
+            Code::Run => {
                 info!("VM {} send sent a Run status", vm.id);
             }
         };
@@ -97,7 +97,7 @@ impl LambdoApiService for VMHandler {
         if request.remote_addr().is_none() {
             error!("No remote address");
             return Ok(Response::new(RegisterResponse {
-                response: Some(crate::grpc_definitions::register_response::Response::Error(
+                response: Some(register_response::Response::Error(
                     "No remote address".to_string(),
                 )),
             }));
@@ -125,7 +125,7 @@ impl LambdoApiService for VMHandler {
                     request.remote_addr().unwrap().ip()
                 );
                 return Ok(Response::new(RegisterResponse {
-                    response: Some(crate::grpc_definitions::register_response::Response::Error(
+                    response: Some(register_response::Response::Error(
                         "No VM found for this IP".to_string(),
                     )),
                 }));
@@ -133,9 +133,7 @@ impl LambdoApiService for VMHandler {
             1 => {
                 vm[0].remote_port = Some(request.into_inner().port.try_into().unwrap());
                 Ok(Response::new(RegisterResponse {
-                    response: Some(crate::grpc_definitions::register_response::Response::Id(
-                        vm[0].id.clone(),
-                    )),
+                    response: Some(register_response::Response::Id(vm[0].id.clone())),
                 }))
             }
             _ => {
@@ -145,7 +143,7 @@ impl LambdoApiService for VMHandler {
                 );
                 error!("VMs: {:#?}", vm);
                 return Ok(Response::new(RegisterResponse {
-                    response: Some(crate::grpc_definitions::register_response::Response::Error(
+                    response: Some(register_response::Response::Error(
                         "Multiple VM found for this IP".to_string(),
                     )),
                 }));
