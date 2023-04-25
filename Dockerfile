@@ -6,7 +6,7 @@ WORKDIR /app
 COPY . .
 
 RUN apk add --no-cache musl-dev && \
-  cargo build --release
+  cargo build -p api --release
 
 # Step 2: Run
 FROM alpine:latest
