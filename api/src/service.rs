@@ -15,7 +15,7 @@ pub fn run_code(
     request: web::Json<RunRequest>,
 ) -> Result<ResponseMessage, Error> {
     let entrypoint = request.code[0].filename.clone();
-    let socket_name = format!("/tmp/{}.sock", Uuid::new_v4().to_string());
+    let socket_name = format!("/tmp/{}.sock", Uuid::new_v4());
 
     let socket_path = Path::new(socket_name.as_str());
     if std::fs::metadata(socket_path).is_ok() {
@@ -26,7 +26,7 @@ pub fn run_code(
         find_language(request.language.clone(), config.languages.clone()).unwrap();
     let steps = generate_steps(language_settings.clone(), entrypoint.to_string());
     let file = shared::FileModel {
-        filename: entrypoint.to_string(),
+        filename: entrypoint,
         content: request.code[0].content.clone(),
     };
     let input_filename = "input.input";
@@ -38,7 +38,7 @@ pub fn run_code(
 
     let request_data = RequestData {
         id: Uuid::new_v4().to_string(),
-        steps: steps,
+        steps,
         files: vec![file, input],
     };
 
@@ -54,7 +54,7 @@ pub fn run_code(
         memory: 1024,
         console: None,
         socket: Some(socket_name.clone()),
-        initramfs: Some(language_settings.initramfs.clone()),
+        initramfs: Some(language_settings.initramfs),
     };
 
     info!(

@@ -30,7 +30,7 @@ async fn main() -> std::io::Result<()> {
     );
 
     let host = config.api.host.clone();
-    let port = config.api.port.clone();
+    let port = config.api.port;
 
     info!("Starting server on {}:{}", host, port);
     HttpServer::new(move || {

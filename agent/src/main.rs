@@ -43,7 +43,10 @@ fn main() -> Result<()> {
     api.send_status_message()?;
 
     // Read request message from serial port
-    let request_message = api.read_from_serial().map_err(|e| api.send_error_message(e.to_string())).unwrap();
+    let request_message = api
+        .read_from_serial()
+        .map_err(|e| api.send_error_message(e.to_string()))
+        .unwrap();
     let mut runner_engine = RunnerEngine::new(request_message);
     runner_engine.create_workspace()?;
     let response_message = runner_engine.run();

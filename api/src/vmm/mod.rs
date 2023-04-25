@@ -55,7 +55,7 @@ pub fn run(opts: VMMOpts) -> Result<(), Error> {
 }
 
 pub fn listen(unix_listener: UnixListener, request_message: RequestMessage) -> JoinHandle<String> {
-    let listener_handler = spawn(move || {
+    spawn(move || {
         // read from socket
         let (mut stream, _) = unix_listener.accept().unwrap();
         let mut response = "".to_string();
@@ -65,7 +65,7 @@ pub fn listen(unix_listener: UnixListener, request_message: RequestMessage) -> J
 
         for line in stream_reader.lines() {
             let parsed_line = parse_response(line.unwrap(), &mut stream, rc.clone()).unwrap();
-            if parsed_line == "" {
+            if parsed_line.is_empty() {
                 continue;
             }
 
@@ -75,8 +75,7 @@ pub fn listen(unix_listener: UnixListener, request_message: RequestMessage) -> J
         log::debug!("response: {}", response);
 
         response
-    });
-    listener_handler
+    })
 }
 
 fn parse_response(
@@ -91,10 +90,10 @@ fn parse_response(
             .split("\"code\":")
             .nth(1)
             .unwrap()
-            .split("}")
-            .nth(0)
+            .split('}')
+            .next()
             .unwrap()
-            .split("\"")
+            .split('"')
             .nth(1)
             .unwrap();
         log::debug!("received status code from agent: {}", status_code);
@@ -116,7 +115,7 @@ fn send_instructions(stream: &mut UnixStream, request_message: Rc<RequestMessage
     log::debug!("sending agent execution json: {}", message);
 
     // send the agent execution to the socket
-    let _ = stream.write_all(message.as_bytes()).unwrap();
+    stream.write_all(message.as_bytes()).unwrap();
 }
 
 fn format_message(message: &str) -> String {

@@ -1,6 +1,5 @@
 use serde::Deserialize;
 use serde::Serialize;
-use uuid::Uuid;
 
 #[derive(Deserialize, Debug)]
 pub struct File {
@@ -23,14 +22,14 @@ pub struct RunResponse {
     pub stderr: String,
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Default)]
 pub struct AgentExecution {
     pub r#type: String,
     pub code: String,
     pub data: AgentExecutionData,
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Default)]
 pub struct AgentExecutionData {
     pub id: String,
     pub steps: Vec<AgentExecutionStep>,
@@ -51,15 +50,7 @@ pub struct AgentExecutionFile {
 
 impl AgentExecution {
     pub fn new() -> Self {
-        AgentExecution {
-            r#type: "request".to_string(),
-            code: "run".to_string(),
-            data: AgentExecutionData {
-                id: Uuid::new_v4().to_string(),
-                steps: Vec::new(),
-                files: Vec::new(),
-            },
-        }
+        AgentExecution::default()
     }
 
     pub fn add_step(&mut self, step: AgentExecutionStep) {
