@@ -1,12 +1,12 @@
 pub mod service;
 
 use actix_web::{post, web, Responder};
-use log::{debug, error, info, trace};
+use log::{debug, error, info, trace, warn};
 
 use crate::{
     api::service::LambdoApiService,
     model::{RunRequest, RunResponse},
-    vm_manager::grpc_definitions::ExecuteResponse,
+    vm_manager::{self, grpc_definitions::ExecuteResponse},
 };
 use std::error::Error;
 
@@ -30,14 +30,24 @@ async fn run(
             parse_response(response)
         }
         // for the moment just signal an internal server error
-        Err(e) => {
-            error!("Error while executing code: {:?}", e);
-            RunResponse {
-                status: 1,
-                stdout: "".to_string(),
-                stderr: "Internal server error".to_string(),
+        Err(e) => match e {
+            vm_manager::Error::Timeout => {
+                warn!("Timeout while executing code");
+                return Ok(web::Json(RunResponse {
+                    status: 128,
+                    stdout: "".to_string(),
+                    stderr: "Timeout".to_string(),
+                }));
             }
-        }
+            _ => {
+                error!("Error while executing code: {:?}", e);
+                RunResponse {
+                    status: 1,
+                    stdout: "".to_string(),
+                    stderr: "Internal server error".to_string(),
+                }
+            }
+        },
     };
 
     Ok(web::Json(response))

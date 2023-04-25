@@ -1,11 +1,9 @@
 use std::sync::Arc;
 
 use super::grpc_definitions::{
-    lambdo_agent_service_client::LambdoAgentServiceClient,
     lambdo_api_service_server::LambdoApiService, register_response, Code, Empty, RegisterRequest,
     RegisterResponse, StatusMessage,
 };
-use anyhow::anyhow;
 use log::{debug, error, info, trace};
 use tokio::sync::Mutex;
 use tonic::{Request, Response, Status};
@@ -22,29 +20,6 @@ pub struct VMListener {
 impl VMListener {
     pub fn new(lambdo_state: Arc<Mutex<LambdoState>>) -> Self {
         VMListener { lambdo_state }
-    }
-
-    pub async fn vm_ready(&self, vm: &mut VMState) -> Result<(), anyhow::Error> {
-        debug!("VM {} is ready", vm.id);
-        vm.state = VMStatus::Ready;
-
-        // Safe, since we created the VMState with an IP
-        let ip = vm.vm_opts.ip.unwrap().address();
-        // Safe, since we got the port already at this stage
-        let address = format!("http://{}:{}", ip, vm.remote_port.unwrap());
-
-        info!(
-            "Trying to connect to VM {}, using address {}",
-            vm.id, address
-        );
-        let client = LambdoAgentServiceClient::connect(address)
-            .await
-            .map_err(|e| anyhow!("Failed to connect to VM {}: {}", vm.id, e))?;
-
-        info!("Connected to VM {}", vm.id);
-        vm.client = Some(client);
-
-        Ok(())
     }
 }
 
@@ -67,23 +42,11 @@ impl LambdoApiService for VMListener {
         debug!("VM {} send a status", vm.id);
 
         match request.code() {
-            Code::Ready => {
-                debug!("Sending signal through channel");
-                if let Err(e) = tx.send(vm.id.clone()) {
-                    error!("Failed to send signal through channel: {}", e);
-                };
-                self.vm_ready(vm).await.unwrap_or_else(|e| {
-                    error!("Failed to handle VM ready status: {}", e);
-                    vm.state = VMStatus::Ended;
-                })
-            }
+            Code::Ready => vm.ready().await.unwrap_or_else(|e| {
+                error!("Failed to handle VM ready status: {}", e);
+            }),
             Code::Error => {
                 error!("VM {} reported an error", vm.id);
-                // TODO: Better error handling
-                if let Err(e) = tx.send(vm.id.clone()) {
-                    error!("Failed to send signal through channel: {}", e);
-                };
-                vm.state = VMStatus::Ended;
             }
             Code::Run => {
                 info!("VM {} send sent a Run status", vm.id);
@@ -120,7 +83,7 @@ impl LambdoApiService for VMListener {
             .filter(|vm| match vm.vm_opts.ip {
                 Some(ip)
                     if ip.address().eq(&request.remote_addr().unwrap().ip())
-                        && vm.state != VMStatus::Ended =>
+                        && vm.get_state() != VMStatus::Ended =>
                 {
                     true
                 }
@@ -141,10 +104,18 @@ impl LambdoApiService for VMListener {
                 }));
             }
             1 => {
-                vm[0].remote_port = Some(request.into_inner().port.try_into().unwrap());
-                Ok(Response::new(RegisterResponse {
-                    response: Some(register_response::Response::Id(vm[0].id.clone())),
-                }))
+                if let Err(e) = vm[0].register(request.into_inner().port) {
+                    error!("Failed to register VM: {}", e);
+                    Ok(Response::new(RegisterResponse {
+                        response: Some(register_response::Response::Error(
+                            "Failed to register VM".to_string(),
+                        )),
+                    }))
+                } else {
+                    Ok(Response::new(RegisterResponse {
+                        response: Some(register_response::Response::Id(vm[0].id.clone())),
+                    }))
+                }
             }
             _ => {
                 error!(
