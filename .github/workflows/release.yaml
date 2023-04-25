@@ -10,6 +10,9 @@ on:
 env:
   CARGO_TERM_COLOR: always
 
+permissions:
+  contents: write
+
 jobs:
   docker:
     runs-on: ubuntu-latest
@@ -53,3 +56,40 @@ jobs:
           password: ${{ secrets.DOCKERHUB_TOKEN }}
           repository: dopolytech2021/lambdo
           short-description: A Serverless runtime in Rust
+  create-github-release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+
+      - name: Get tag name
+        id: tag
+        run: echo ::set-output name=tag_name::${GITHUB_REF#refs/tags/}
+
+      - name: Create GitHub Release
+        uses: taiki-e/create-gh-release-action@v1
+        with:
+          title: Release ${{ steps.tag.outputs.tag_name }}
+          token: ${{ secrets.GITHUB_TOKEN }}
+  upload-github-assets:
+    name: build-${{ matrix.target }}
+    strategy:
+      fail-fast: false
+      matrix:
+        target: ["x86_64-unknown-linux-gnu", "x86_64-unknown-linux-musl"]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+
+      - name: Install dependencies
+        run: sudo apt install -y pkg-config libssl-dev libudev-dev
+
+      - name: Install rust toolchain & make release
+        uses: taiki-e/upload-rust-binary-action@v1
+        with:
+          bin: api,agent,initramfs
+          target: ${{ matrix.target }}
+          archive: lambdo-$target
+          checksum: md5
+          token: ${{ secrets.GITHUB_TOKEN }}
