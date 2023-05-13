@@ -1,0 +1,77 @@
+openapi: 3.0.1
+info:
+  title: Lambdo
+  description: A serverless runtime for Linux
+  version: 'v1'
+servers:
+  - url: http://localhost:3000
+paths:
+  /run:
+    post:
+      operationId: runCode
+      summary: Run some given code
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/runRequest'
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/runResponse'
+components:
+  schemas:
+    runRequest:
+      type: object
+      required:
+        - language
+        - version
+        - code
+        - input
+      properties:
+        language:
+          type: string
+          oneOf:
+            - enum:
+                - NODE
+                - PYTHON
+          description: The language to use, in uppercase.
+        version:
+          type: string
+          description: The version of the language to use
+          oneOf:
+            - enum:
+                - "1.0.0"
+        code:
+          type: array
+          items:
+            type: object
+            required:
+              - filename
+              - content
+            properties:
+              filename:
+                type: string
+                description: The filename of the code
+              content:
+                type: string
+                description: The content of the code. Line separated by "\n".
+          description: The code to run
+        input:
+          type: string
+          description: The input to the program. Line separated by "\n".
+    runResponse:
+      type: object
+      properties:
+        status:
+          type: number
+          description: The exit code
+        stdout:
+          type: string
+          description: The stdout of the program. Line separated by "\n".
+        stderr:
+          type: string
+          description: The stderr of the program. Line separated by "\n".

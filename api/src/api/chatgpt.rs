@@ -10,3 +10,10 @@ pub async fn ai_plugin() -> Result<impl Responder, Box<dyn Error>> {
 
     Ok(NamedFile::open_async("./api/static/ai-plugin.json").await?)
 }
+
+#[get("/openapi.yaml")]
+pub async fn openapi() -> Result<impl Responder, Box<dyn Error>> {
+    debug!("Received openapi request from http",);
+
+    Ok(NamedFile::open_async("./api/static/openapi.yaml").await?)
+}

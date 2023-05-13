@@ -9,7 +9,11 @@ use config::LambdoConfig;
 use thiserror::Error;
 
 use crate::{
-    api::{chatgpt::ai_plugin, run, service::LambdoApiService},
+    api::{
+        chatgpt::{ai_plugin, openapi},
+        run,
+        service::LambdoApiService,
+    },
     vm_manager::grpc_definitions::lambdo_api_service_server::LambdoApiServiceServer,
     vm_manager::state::LambdoState,
     vm_manager::VMListener,
@@ -92,6 +96,7 @@ async fn main() -> std::io::Result<()> {
             .app_data(app_state.clone())
             .service(run)
             .service(ai_plugin)
+            .service(openapi)
     })
     .bind((http_host.clone(), http_port))?
     .run()
