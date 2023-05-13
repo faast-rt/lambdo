@@ -5,6 +5,7 @@ pub mod vm_manager;
 
 use std::sync::Arc;
 
+use actix_cors::Cors;
 use config::LambdoConfig;
 use thiserror::Error;
 
@@ -93,6 +94,12 @@ async fn main() -> std::io::Result<()> {
     info!("Starting web server on {}:{}", http_host, http_port);
     HttpServer::new(move || {
         App::new()
+            .wrap(
+                Cors::default()
+                    .allow_any_origin()
+                    .allow_any_method()
+                    .allow_any_header(),
+            )
             .app_data(app_state.clone())
             .service(run)
             .service(ai_plugin)
