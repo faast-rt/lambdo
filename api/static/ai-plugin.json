@@ -1,0 +1,18 @@
+{
+  "schema_version": "v1",
+  "name_for_human": "Lambdo",
+  "name_for_model": "lambdo",
+  "description_for_human": "Run code",
+  "description_for_model": "Plugin for running Node code",
+  "auth": {
+    "type": "none"
+  },
+  "api": {
+    "type": "openapi",
+    "url": "http://localhost:3000/openapi.yaml",
+    "is_user_authenticated": false
+  },
+  "logo_url": "http://localhost:3000/logo.png",
+  "contact_email": "simon.lucido@etu.umontpellier.fr",
+  "legal_info_url": "http://www.example.com/legal"
+}

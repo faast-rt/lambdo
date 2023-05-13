@@ -1,3 +1,4 @@
+pub mod chatgpt;
 pub mod service;
 
 use actix_web::{post, web, Responder};
