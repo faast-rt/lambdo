@@ -19,7 +19,9 @@ jobs:
         component: ["api", "agent", "initramfs"]
         include:
           - component: agent
-            dependencies: "libudev-dev"
+            dependencies: "libudev-dev protobuf-compiler"
+          - component: api
+            dependencies: "protobuf-compiler"
     steps:
       - uses: actions/checkout@v3
 

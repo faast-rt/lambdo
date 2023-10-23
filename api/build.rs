@@ -11,11 +11,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .compile(&["../shared/proto/lambdo.proto"], &["../shared/proto"])?;
 
     let _ = Command::new(std::env::var("RUSTFMT").unwrap_or_else(|_| "rustfmt".to_owned()))
+        .arg("--edition")
+        .arg("2021")
         .arg("--emit")
         .arg("files")
         .arg(format!(
             "{}/{}",
-            "src/vm_manager_vmm", "grpc_definitions.rs"
+            "src/vm_manager/vmm", "grpc_definitions.rs"
         ))
         .output();
 
