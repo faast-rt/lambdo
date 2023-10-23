@@ -71,7 +71,7 @@ impl LambdoAgentServer {
 
 #[tonic::async_trait]
 impl LambdoAgentService for LambdoAgentServer {
-    async fn status(&self, request: Request<Empty>) -> Result<Response<StatusMessage>, Status> {
+    async fn status(&self, _request: Request<Empty>) -> Result<Response<StatusMessage>, Status> {
         Err(Status::unimplemented("Not implemented yet"))
     }
 

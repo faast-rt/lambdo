@@ -47,7 +47,7 @@ impl LambdoApiService {
 
         let request_data = ExecuteRequest {
             id: Uuid::new_v4().to_string(),
-            steps: steps,
+            steps,
             files: vec![file, input],
         };
         trace!("Request message to VMM: {:?}", request_data);
@@ -77,11 +77,11 @@ impl LambdoApiService {
     fn generate_steps(
         &self,
         language_settings: &LambdoLanguageConfig,
-        entrypoint: &String,
+        entrypoint: &str,
     ) -> Vec<ExecuteRequestStep> {
         let mut steps: Vec<ExecuteRequestStep> = Vec::new();
         for step in &language_settings.steps {
-            let command = step.command.replace("{{filename}}", entrypoint.as_str());
+            let command = step.command.replace("{{filename}}", entrypoint);
 
             steps.push(ExecuteRequestStep {
                 command,

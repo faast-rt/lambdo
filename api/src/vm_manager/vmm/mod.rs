@@ -107,7 +107,7 @@ pub async fn run_vm(
     let config = &state.config;
     // Safe since we checked the validity of the address before
     let host_ip = Ipv4Inet::from_str(&config.api.bridge_address).unwrap();
-    let tap_name = format!("tap-{}", uuid[0..8].to_string());
+    let tap_name = format!("tap-{}", &uuid[0..8]);
 
     let opts: VMMOpts = VMMOpts {
         kernel: config.vmm.kernel.clone(),
@@ -144,5 +144,5 @@ pub async fn run_vm(
     })?;
     state.vms.push(vm_state);
 
-    Ok(uuid.clone())
+    Ok(uuid)
 }

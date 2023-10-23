@@ -30,7 +30,7 @@ impl LambdoApiService for VMListener {
         debug!("Received status request: {:#?}", request);
 
         let mut lambdo_state = self.lambdo_state.lock().await;
-        let tx = lambdo_state.channel.0.clone();
+        let _tx = lambdo_state.channel.0.clone();
 
         let vm = match lambdo_state.vms.iter_mut().find(|vm| vm.id.eq(&request.id)) {
             Some(vm) => vm,
@@ -80,15 +80,8 @@ impl LambdoApiService for VMListener {
         let mut vm = lambdo_state
             .vms
             .iter_mut()
-            .filter(|vm| match vm.vm_opts.ip {
-                Some(ip)
-                    if ip.address().eq(&request.remote_addr().unwrap().ip())
-                        && vm.get_state() != VMStatus::Ended =>
-                {
-                    true
-                }
-                _ => false,
-            })
+            .filter(|vm| matches!(vm.vm_opts.ip, Some(ip) if ip.address().eq(&request.remote_addr().unwrap().ip())
+                        && vm.get_state() != VMStatus::Ended))
             .collect::<Vec<&mut VMState>>();
 
         match vm.len() {

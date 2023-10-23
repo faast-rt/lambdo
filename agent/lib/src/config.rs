@@ -63,7 +63,7 @@ fn default_gateway_ip() -> String {
     trace!("getting default gateway ip address");
     let gateway = default_net::get_default_gateway().unwrap_or_else(|e| {
         error!("Failed to get default gateway ip address");
-        panic!("{}", e.to_string())
+        panic!("{}", e)
     });
     debug!("using default gateway ip address: {}", gateway.ip_addr);
     gateway.ip_addr.to_string()
