@@ -31,7 +31,7 @@ jobs:
         uses: docker/metadata-action@v4
         with:
           images: |
-            dopolytech2021/lambdo
+            faastrt/lambdo
           tags: |
             type=ref,event=tag
             type=semver,pattern={{version}}
@@ -57,7 +57,7 @@ jobs:
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
-          repository: dopolytech2021/lambdo
+          repository: faastrt/lambdo
           short-description: A Serverless runtime in Rust
   create-github-release:
     runs-on: ubuntu-latest
