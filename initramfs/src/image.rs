@@ -1,7 +1,7 @@
 use std::{
     collections::HashMap,
     fs::File,
-    io::{Cursor, Read},
+    io::{Cursor, Read, Write},
 };
 
 use anyhow::{anyhow, Result};
@@ -12,10 +12,26 @@ use log::debug;
 use serde::Deserialize;
 use tar::Archive;
 
+/// Trait to abstract File reading
+pub trait FileHandler: Write + Read + Sized {
+    fn create(path: &str) -> Result<Self>;
+    fn open(path: &str) -> Result<Self>;
+}
+
+impl FileHandler for File {
+    fn create(path: &str) -> Result<Self> {
+        File::create(path).map_err(|e| anyhow!(e).context("Failed to create file"))
+    }
+
+    fn open(path: &str) -> Result<Self> {
+        File::open(path).map_err(|e| anyhow!(e).context("Failed to open file"))
+    }
+}
+
 #[derive(Deserialize, Debug, Clone)]
-#[allow(non_snake_case)]
+#[serde(rename_all = "camelCase")]
 pub struct LayerMetadata {
-    pub blobSum: String,
+    pub blob_sum: String,
 }
 
 #[derive(Clone)]
@@ -35,6 +51,11 @@ impl Image {
         // Extract the registry and tag from the image
         let mut parts = full_name.split(':');
         let name = parts.next().ok_or_else(|| anyhow!("Invalid image name"))?;
+
+        if name.is_empty() {
+            return Err(anyhow!("Please provide and image name and not just a tag"));
+        }
+
         let tag = parts.next().unwrap_or("latest");
 
         // If the registry doesn't contain a '/', it's in "library/", meaning it's from the docker hub official images
@@ -61,16 +82,16 @@ impl Image {
         &self.tag
     }
 
-    pub fn export_to_initramfs(
+    pub fn export_to_initramfs<Handler: FileHandler>(
         &self,
         init_path: &str,
         agent_path: &str,
         agent_config_path: &str,
-    ) -> Result<()> {
+    ) -> Result<Handler> {
         // Write the cpio to disk
         let file_name = format!("initramfs-{}-{}.img", self.name.replace('/', "-"), self.tag);
         let archive = Encoder::new(
-            File::create(file_name).map_err(|e| anyhow!(e).context("Failed to create file"))?,
+            Handler::create(&file_name).map_err(|e| anyhow!(e).context("Failed to create file"))?,
         )
         .map_err(|e| anyhow!(e).context("Failed to create gzip encoder"))?;
 
@@ -127,10 +148,10 @@ impl Image {
         }
 
         let mut init_file =
-            File::open(init_path).map_err(|e| anyhow!(e).context("Failed to open init file"))?;
-        let mut agent_file =
-            File::open(agent_path).map_err(|e| anyhow!(e).context("Failed to open init file"))?;
-        let mut agent_config_file = File::open(agent_config_path)
+            Handler::open(init_path).map_err(|e| anyhow!(e).context("Failed to open init file"))?;
+        let mut agent_file = Handler::open(agent_path)
+            .map_err(|e| anyhow!(e).context("Failed to open init file"))?;
+        let mut agent_config_file = Handler::open(agent_config_path)
             .map_err(|e| anyhow!(e).context("Failed to open agent config file"))?;
 
         let mut init_content = Vec::new();
@@ -165,13 +186,121 @@ impl Image {
             .map(|(_, (builder, contents))| (builder, contents));
         let archive =
             write_cpio(test, archive).map_err(|e| anyhow!(e).context("Failed to write cpio"))?;
-        archive
+        let handler = archive
             .finish()
             .into_result()
             .map_err(|e| anyhow!(e).context("Failed to finish writing cpio"))?;
 
         debug!("Successfully wrote cpio to disk");
 
-        Ok(())
+        Ok(handler)
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use super::{FileHandler, Image};
+    use anyhow::Ok;
+    use std::env;
+    use std::io::{Read, Write};
+
+    const VALID_IMAGE_NAME: &str = "my_awesome_img:14md35";
+    const VALID_IMAGE_NAME_FROM_HUB: &str = "bitnami/mongodb:latest";
+
+    #[derive(Debug, Clone)]
+    struct MockFileHandler {
+        vec: Vec<u8>,
+    }
+
+    impl Read for MockFileHandler {
+        fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
+            let len = std::cmp::min(buf.len(), self.vec.len());
+            buf[..len].copy_from_slice(&self.vec[..len]);
+            self.vec = self.vec[len..].to_vec();
+            std::result::Result::Ok(len)
+        }
+    }
+
+    impl Write for MockFileHandler {
+        fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
+            self.vec.extend_from_slice(buf);
+            std::result::Result::Ok(buf.len())
+        }
+
+        fn flush(&mut self) -> std::io::Result<()> {
+            std::result::Result::Ok(())
+        }
+    }
+
+    impl FileHandler for MockFileHandler {
+        fn create(path: &str) -> anyhow::Result<Self>
+        where
+            Self: std::marker::Sized,
+        {
+            Ok(Self::new(path))
+        }
+
+        fn open(path: &str) -> anyhow::Result<Self>
+        where
+            Self: std::marker::Sized,
+        {
+            Ok(Self::new(path))
+        }
+    }
+
+    impl MockFileHandler {
+        fn new(_path: &str) -> Self {
+            Self { vec: Vec::new() }
+        }
+    }
+
+    #[test]
+    pub fn valid_image_name() {
+        let image1 = Image::new(VALID_IMAGE_NAME);
+        assert!(image1.is_ok());
+
+        let image1 = image1.unwrap();
+        assert_eq!(image1.name(), "library/my_awesome_img");
+        assert_eq!(image1.tag(), "14md35");
+
+        let image2 = Image::new(VALID_IMAGE_NAME_FROM_HUB);
+        assert!(image2.is_ok());
+
+        let image2 = image2.unwrap();
+        assert_eq!(image2.name(), "bitnami/mongodb");
+        assert_eq!(image2.tag(), "latest");
+    }
+
+    #[test]
+    pub fn invalid_image_name() {
+        let image = Image::new(":tag_but_with_no_image");
+        assert!(image.is_err());
+    }
+
+    #[test]
+    pub fn test_initramfs_export() {
+        let image = Image::new(VALID_IMAGE_NAME);
+
+        let image_filename = format!("{}/init", env::temp_dir().display());
+        let agent_filename = format!("{}/agent", env::temp_dir().display());
+        let agent_config_filename = format!("{}/agent_config", env::temp_dir().display());
+
+        MockFileHandler::new(&image_filename);
+        MockFileHandler::new(&agent_filename);
+        MockFileHandler::new(&agent_config_filename);
+
+        // checks
+        let handler = image.unwrap().export_to_initramfs::<MockFileHandler>(
+            image_filename.as_str(),
+            agent_filename.as_str(),
+            agent_config_filename.as_str(),
+        );
+
+        let mut handler = handler.unwrap();
+
+        let mut read_buf = [0; 2];
+        let _ = handler.read(&mut read_buf).unwrap();
+
+        assert_eq!(read_buf, [0x1F, 0x8b]);
     }
 }

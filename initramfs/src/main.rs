@@ -1,3 +1,5 @@
+use std::fs::File;
+
 use anyhow::anyhow;
 use clap::Parser;
 use env_logger::Env;
@@ -58,7 +60,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     info!("Writing  to disk ...");
     image
-        .export_to_initramfs(&args.init, &args.agent, &args.agent_config)
+        .export_to_initramfs::<File>(&args.init, &args.agent, &args.agent_config)
         .map_err(|e| anyhow!(e).context("Failed to write filesystem to disk"))?;
     info!("Writing done!");
 
