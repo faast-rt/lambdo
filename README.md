@@ -34,7 +34,7 @@ $ docker run -it --privileged -p 3000:3000 \
   -v /path/to/config:/etc/lambdo/config.yaml \
   -v /path/to/initramfs:/var/lib/lambdo/initramfs \
   -v /path/to/kernel:/var/lib/lambdo/kernel/vmlinux.bin \
-  dopolytech2021/lambdo
+  faastrt/lambdo
 ```
 
 If you want to run `lambdo` for a test, you can use the `docker-compose` file that will use the `examples/node` folder as configuration folder.
