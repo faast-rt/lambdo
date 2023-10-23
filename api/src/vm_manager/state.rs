@@ -18,6 +18,8 @@ pub type LambdoStateRef = std::sync::Arc<tokio::sync::Mutex<LambdoState>>;
 pub struct LambdoState {
     pub vms: Vec<VMState>,
     pub config: LambdoConfig,
+
+    #[allow(clippy::type_complexity)]
     pub channel: (
         tokio::sync::broadcast::Sender<(String, VMStatus)>,
         tokio::sync::broadcast::Receiver<(String, VMStatus)>,
@@ -52,6 +54,8 @@ pub struct VMState {
     pub response: Option<ExecuteResponse>,
     remote_port: Option<u16>,
     client: Option<LambdoAgentServiceClient<tonic::transport::Channel>>,
+
+    #[allow(dead_code)]
     start_timestamp: tokio::time::Instant,
     execute_timestamp: Option<tokio::time::Instant>,
     tx: tokio::sync::broadcast::Sender<(String, VMStatus)>,

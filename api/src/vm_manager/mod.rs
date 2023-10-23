@@ -1,23 +1,17 @@
 pub mod state;
 use network_interface::{NetworkInterface, NetworkInterfaceConfig};
 use tokio::process::Command;
-use uuid::Uuid;
+
 pub use vmm::grpc_definitions;
 pub use vmm::grpc_server::VMListener;
 pub use vmm::Error;
 
 use anyhow::anyhow;
-use cidr::{IpInet, Ipv4Inet};
+
 use log::{debug, error, info, trace, warn};
 use std::{net::IpAddr, str::FromStr};
 
-use crate::{
-    model::LanguageSettings,
-    vm_manager::{
-        state::{VMState, VMStatus},
-        vmm::{run, VMMOpts},
-    },
-};
+use crate::{model::LanguageSettings, vm_manager::state::VMStatus};
 
 use self::{
     grpc_definitions::{ExecuteRequest, ExecuteResponse},
@@ -37,7 +31,7 @@ impl VMManager {
 
         {
             let mut state = vmm_manager.state.lock().await;
-            setup_bridge(&mut state).await.map_err(|e| {
+            setup_bridge(&state).await.map_err(|e| {
                 error!("Error while setting up bridge: {:?}", e);
                 Error::NetSetupError(e)
             })?;
@@ -128,7 +122,7 @@ impl VMManager {
                         error!("Error while receiving from channel: {:?}", e);
                         break;
                     }
-                    Ok((id, status)) if status == VMStatus::Running => {
+                    Ok((id, VMStatus::Running)) => {
                         let mut state = state.lock().await;
                         let vm = match state.vms.iter().find(|vm| vm.id == id) {
                             Some(vm) if !vm.reserved => vm,
@@ -154,7 +148,7 @@ impl VMManager {
     }
 }
 
-pub(self) async fn setup_bridge(state: &state::LambdoState) -> anyhow::Result<()> {
+async fn setup_bridge(state: &state::LambdoState) -> anyhow::Result<()> {
     let config = &state.config;
     let bridge_name = &config.api.bridge;
     let bridge_address = &config.api.bridge_address;
@@ -199,14 +193,10 @@ pub(self) async fn setup_bridge(state: &state::LambdoState) -> anyhow::Result<()
         .collect::<Vec<_>>();
 
     trace!("existing addresses: {:?}", addresses);
-    if addresses
-        .iter()
-        .find(|addr| {
-            addr.ip() == bridge_address.address()
-                && addr.netmask() == Some(IpAddr::V4(bridge_address.mask()))
-        })
-        .is_some()
-    {
+    if addresses.iter().any(|addr| {
+        addr.ip() == bridge_address.address()
+            && addr.netmask() == Some(IpAddr::V4(bridge_address.mask()))
+    }) {
         debug!("bridge address already exists, skipping");
     } else {
         debug!("bridge address does not exist, creating it");
@@ -217,7 +207,7 @@ pub(self) async fn setup_bridge(state: &state::LambdoState) -> anyhow::Result<()
             bridge_address.network_length()
         );
         Command::new("ip")
-            .args(&[
+            .args([
                 "addr",
                 "add",
                 &format!(
@@ -236,7 +226,7 @@ pub(self) async fn setup_bridge(state: &state::LambdoState) -> anyhow::Result<()
     debug!("bringing up bridge");
 
     Command::new("ip")
-        .args(&["link", "set", bridge_name, "up"])
+        .args(["link", "set", bridge_name, "up"])
         .output()
         .await
         .map_err(|e| anyhow!("error when bringing up bridge: {}", e))?;

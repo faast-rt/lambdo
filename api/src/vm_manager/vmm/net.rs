@@ -1,4 +1,3 @@
-use std::net::IpAddr;
 use std::process::Command;
 use std::str::FromStr;
 
@@ -6,12 +5,10 @@ use anyhow::anyhow;
 use anyhow::Result;
 use cidr::IpInet;
 use cidr::Ipv4Inet;
-use log::{debug, error, info, trace};
-use network_interface::NetworkInterface;
-use network_interface::NetworkInterfaceConfig;
+use log::{debug, info, trace};
 
 use crate::vm_manager::state::LambdoState;
-use crate::vm_manager::state::LambdoStateRef;
+
 use crate::vm_manager::state::VMStatus;
 
 pub(super) fn add_interface_to_bridge(interface_name: &String, state: &LambdoState) -> Result<()> {
@@ -31,7 +28,7 @@ pub(super) fn add_interface_to_bridge(interface_name: &String, state: &LambdoSta
 
     debug!("bringing up interface");
     Command::new("ip")
-        .args(&["link", "set", interface_name, "up"])
+        .args(["link", "set", interface_name, "up"])
         .output()
         .map_err(|e| anyhow!("error when bringing up interface: {}", e))?;
 
@@ -60,7 +57,7 @@ pub(super) async fn find_available_ip(state: &LambdoState) -> Result<Ipv4Inet> {
         .collect();
     debug!("looking for available ip in {}", host_ip);
     trace!("used ip: {:?}", used_ip);
-    let mut ip = host_ip.clone();
+    let mut ip = host_ip;
     ip.increment();
 
     while used_ip.contains(&ip.address()) {
@@ -71,5 +68,5 @@ pub(super) async fn find_available_ip(state: &LambdoState) -> Result<Ipv4Inet> {
     }
 
     info!("found available ip: {}", ip);
-    return Ok(ip);
+    Ok(ip)
 }
