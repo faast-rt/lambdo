@@ -89,7 +89,7 @@ impl Registry {
         let res = run_get_request(
             &format!(
                 "{}/{}/blobs/{}",
-                self.url, image_name, layer_metadata.blobSum
+                self.url, image_name, layer_metadata.blob_sum
             ),
             Some(token),
         )
@@ -118,7 +118,7 @@ impl Registry {
     ) -> Result<Vec<Layer>> {
         let mut layers = Vec::new();
         for layer_metadata in layers_metadata.iter() {
-            info!("Pulling layer {:?}", layer_metadata.blobSum);
+            info!("Pulling layer {:?}", layer_metadata.blob_sum);
 
             let layer = self
                 .get_layer(token, image_name, layer_metadata)
@@ -126,7 +126,7 @@ impl Registry {
                 .map_err(|e| anyhow!(e).context("Failed to pull layer"))?;
             layers.push(layer);
 
-            debug!("Successfully pulled layer : {:?}", layer_metadata.blobSum);
+            debug!("Successfully pulled layer : {:?}", layer_metadata.blob_sum);
         }
 
         debug!("Successfully pulled all layers");
