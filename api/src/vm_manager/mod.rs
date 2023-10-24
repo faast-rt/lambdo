@@ -79,6 +79,7 @@ impl VMManager {
 
             info!("Waiting for a connection from VMM {}", id);
 
+            drop(state);
             let received_id = loop {
                 let r_id = rx.recv().await.map_err(|e| {
                     error!("Error while waiting for VM to start: {:?}", e);
