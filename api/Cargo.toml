@@ -16,7 +16,7 @@ anyhow = "1.0.62"
 clap = { version="4.1.6", features=["derive"] }
 serde_yaml = "0.9"
 env_logger = "0.10.0"
-lumper = { git = "https://github.com/do4-2022/lumper.git", rev = "5305a5d970ddcd331f5e6a82e2db313bbb7a6a33" }
+lumper = { git = "https://github.com/faast-rt/lumper.git", rev = "81366eb" }
 
 [dependencies.uuid]
 version = "1.3.0"
