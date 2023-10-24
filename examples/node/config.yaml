@@ -9,6 +9,10 @@ api:
   grpc_host: 0.0.0.0
   # The port on which the gRPC server will listen
   gprc_port: 50051
+  # Bridge name
+  bridge: lambdo0
+  # The IP address of the bridge
+  ip: 10.0.50.0/8
 vmm:
   # The kernel path to use for the vmm
   kernel: /var/lib/lambdo/kernel/vmlinux.bin
