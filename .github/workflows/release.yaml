@@ -4,8 +4,6 @@ on:
   create:
     tags:
       - "v*"
-    branches:
-      - main
 
 env:
   CARGO_TERM_COLOR: always
