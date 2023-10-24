@@ -9,8 +9,6 @@ use log::{debug, info, trace};
 
 use crate::vm_manager::state::LambdoState;
 
-use crate::vm_manager::state::VMStatus;
-
 pub(super) fn add_interface_to_bridge(interface_name: &String, state: &LambdoState) -> Result<()> {
     let bridge_name = &state.config.api.bridge;
     debug!(
@@ -50,7 +48,8 @@ pub(super) async fn find_available_ip(state: &LambdoState) -> Result<Ipv4Inet> {
         .filter_map(|vm| {
             debug!("VM {:?} has ip {:?}", vm.id, vm.vm_opts.ip);
             match vm.vm_opts.ip {
-                Some(IpInet::V4(ip)) if vm.get_state() != VMStatus::Ended => Some(ip.address()),
+                // if vm.get_state() != VMStatus::Ended
+                Some(IpInet::V4(ip)) => Some(ip.address()),
                 _ => None,
             }
         })
