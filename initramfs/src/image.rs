@@ -8,7 +8,7 @@ use anyhow::{anyhow, Result};
 use bytes::Bytes;
 use cpio::{newc::Builder, write_cpio};
 use libflate::gzip::{Decoder, Encoder};
-use log::debug;
+use log::{debug, info};
 use serde::Deserialize;
 use tar::Archive;
 
@@ -95,9 +95,9 @@ impl Image {
         )
         .map_err(|e| anyhow!(e).context("Failed to create gzip encoder"))?;
 
-        let mut entries = HashMap::new();
+        let mut entries: HashMap<String, (Builder, Cursor<Vec<u8>>)> = HashMap::new();
 
-        for layer in self.layers.clone() {
+        for layer in self.layers.clone().into_iter() {
             let mut archive = Archive::new(Decoder::new(layer.content)?);
 
             for entry in archive
@@ -113,7 +113,21 @@ impl Image {
                     .ok_or_else(|| anyhow!("Failed to convert path to string"))?
                     .to_string();
 
-                if entries.contains_key(&path) {
+                // This means we need to delete everything that is in the parent directory
+                if path.contains(".wh..wh..opq") {
+                    debug!("Found opaque whiteout file : {}", &path);
+
+                    let parent = path.trim_end_matches(".wh..wh..opq");
+                    let keys = entries
+                        .keys()
+                        .filter(|key| key.starts_with(parent))
+                        .cloned()
+                        .collect::<Vec<_>>();
+
+                    keys.iter().for_each(|key| {
+                        entries.remove(key);
+                    });
+
                     continue;
                 }
 
@@ -139,9 +153,21 @@ impl Image {
                 debug!("Adding {} to archive", &path);
 
                 let mut contents = Vec::new();
-                entry
-                    .read_to_end(&mut contents)
-                    .map_err(|e| anyhow!(e).context("Failed to read entry"))?;
+                if headers.entry_type().is_symlink() {
+                    let link_path = headers
+                        .link_name()
+                        .map_err(|e| anyhow!(e).context("Failed to get link name of entry"))?
+                        .ok_or(anyhow!("Failed to get link name of entry"))?
+                        .to_str()
+                        .ok_or_else(|| anyhow!("Failed to convert link name to string"))?
+                        .to_string();
+
+                    contents.extend_from_slice(link_path.as_bytes());
+                } else {
+                    entry
+                        .read_to_end(&mut contents)
+                        .map_err(|e| anyhow!(e).context("Failed to read entry"))?;
+                }
 
                 entries.insert(path, (builder, Cursor::new(contents)));
             }
@@ -181,11 +207,13 @@ impl Image {
             ),
         );
 
-        let test = entries
-            .drain()
-            .map(|(_, (builder, contents))| (builder, contents));
+        info!("Writing cpio to disk");
+
+        let inputs = entries.drain().map(|(_, data)| data);
+
         let archive =
-            write_cpio(test, archive).map_err(|e| anyhow!(e).context("Failed to write cpio"))?;
+            write_cpio(inputs, archive).map_err(|e| anyhow!(e).context("Failed to write cpio"))?;
+
         let handler = archive
             .finish()
             .into_result()
