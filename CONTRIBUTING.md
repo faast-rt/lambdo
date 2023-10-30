@@ -1,6 +1,6 @@
 # Contributing to FAAST
 
-Thanks for your interest in improving the project! This document provides a step-by-step guide for general contributions to FAAST.
+Thanks for your interest in improving the project! This document provides a guideline for general contributions to FAAST.
 
 ## Getting started
 
@@ -12,19 +12,33 @@ There are there general ways you can contribute to this repo:
 
 For the first two, refer to the [GitHub Issues](https://github.com/faast-rt/lambdo/issues/new/choose) which guides you through the available options along with the needed information to collect.
 
-> To setup your development environment, please refer to the [README](./README.md).
-
 ## Contributing changes
 
-_Prior to opening a pull request, it is recommended to open an issue first to ensure the maintainers can review intended changes. Exceptions to this rule include fixing non-functional source such as code comments, documentation or other supporting files._
+_Please open an issue before adding a new feature or making major changes to existing one. It allows the community to discuss the relevancy of the issue, as well as the caveats one should avoid when implementing it. Exceptions to this rule include fixing non-functional source such as code comments, documentation or other supporting files._
 
 Proposing source code changes is done through [GitHub's standard pull request workflow](https://docs.github.com/en/get-started/quickstart/github-flow#create-a-pull-request).
+
+### Pull Request Process
+
+[Fork](https://docs.github.com/en/get-started/quickstart/fork-a-repo) the repository on GitHub and clone it locally.
+
+> To setup your development environment, please refer to the [README](./README.md).
+
+Then, create a new branch for your changes:
+
+```bash
+
+git checkout -b my-branch-name
+
+```
+
+Finally, open a pull request on the [Lambo repository](https://github.com/faast-rt/lambdo/pulls) and compare it across the `main` branch.
+
+### Pull Request Guidelines
 
 If your branch is a work-in-progress then please start by creating your pull requests as draft, by clicking the down-arrow next to the `Create pull request` button and instead selecting `Create draft pull request`.
 
 This will defer the automatic process of requesting a review from the FAAST team and significantly reduces noise until you are ready. Once you are happy, you can click the `Ready for review` button.
-
-### Pull Request Guidelines
 
 A good pull request includes:
 
@@ -52,7 +66,7 @@ Each commit message consists of a header, a body and a footer. The header has a 
 [optional footer(s)]
 ```
 
-Any line of the commit message cannot be longer 100 characters! This allows the message to be easier to read on GitHub as well as in various git tools.
+Any line of the commit message cannot be longer than 100 characters! This allows the message to be easier to read on GitHub as well as in various git tools.
 
 The footer should contain a [closing reference to an issue](https://docs.github.com/en/issues/tracking-your-work-with-issues/linking-a-pull-request-to-an-issue) if any.
 
