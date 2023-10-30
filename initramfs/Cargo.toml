@@ -18,6 +18,6 @@ env_logger = { version = "0.10.0" }
 flate2 = { version = "1.0.25" }
 tar = { version = "0.4.38" }
 bytes = "1.4.0"
-libflate = "0.1"
+libflate = "2.0.0"
 cpio = "0.2.2"
 openssl = { version = "0.10", features = ["vendored"] }
