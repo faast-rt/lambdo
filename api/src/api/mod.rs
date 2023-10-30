@@ -72,3 +72,63 @@ fn parse_response(response: ExecuteResponse) -> RunResponse {
         stderr,
     }
 }
+
+#[cfg(test)]
+mod test{
+    use crate::{vm_manager::grpc_definitions::{ExecuteResponse, ExecuteResponseStep}, api::parse_response};
+
+
+    #[test]
+    fn test_parse_response_stdout() {
+        let response = ExecuteResponse {
+            id: "test".to_string(),
+            steps: vec![
+                ExecuteResponseStep {
+                    command: "echo Hello".to_string(),
+                    stdout: "Hello".to_string(),
+                    stderr: "".to_string(),
+                    exit_code: 0,
+                },
+                ExecuteResponseStep {
+                    command: "echo World".to_string(),
+                    stdout: "World".to_string(),
+                    stderr: "".to_string(),
+                    exit_code: 0,
+                },
+            ],
+        };
+
+        let parsed = parse_response(response);
+
+        assert_eq!(parsed.stdout, "HelloWorld");
+        assert_eq!(parsed.stderr, "");
+        assert_eq!(parsed.status, 0);
+    }
+
+    #[test]
+    fn test_parse_response_with_error() {
+        let response = ExecuteResponse {
+            id: "test".to_string(),
+            steps: vec![
+                ExecuteResponseStep {
+                    command: "echo Hello".to_string(),
+                    stdout: "Hello".to_string(),
+                    stderr: "".to_string(),
+                    exit_code: 0,
+                },
+                ExecuteResponseStep {
+                    command: "echo World".to_string(),
+                    stdout: "".to_string(),
+                    stderr: "Error".to_string(),
+                    exit_code: 1,
+                },
+            ],
+        };
+
+        let parsed = parse_response(response);
+
+        assert_eq!(parsed.stdout, "Hello");
+        assert_eq!(parsed.stderr, "Error");
+        assert_eq!(parsed.status, 1);
+    }
+}
