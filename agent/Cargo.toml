@@ -31,4 +31,4 @@ name = "agent_lib"
 path = "lib/src/lib.rs"
 
 [dev-dependencies]
-rand = "0.8.5"
+tempfile = "3.8.1"
