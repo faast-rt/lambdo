@@ -41,6 +41,11 @@ jobs:
         name: Install dependencies
         run: sudo apt install -y ${{ matrix.dependencies }}
 
+      - name: Use cargo cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: ${{ matrix.component }}
+
       - name: Build
         run: cargo build -p ${{ matrix.component }}
 
