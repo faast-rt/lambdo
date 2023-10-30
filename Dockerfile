@@ -5,7 +5,7 @@ WORKDIR /app
 
 COPY . .
 
-RUN apk add --no-cache musl-dev && \
+RUN apk add --no-cache musl-dev protobuf-dev make && \
   cargo build -p api --release
 
 # Step 2: Run
