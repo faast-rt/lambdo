@@ -223,16 +223,38 @@ mod tests {
         string
     }
 
+    #[test]
+    fn run_one_works_with_ouputs_and_code() {
+        let res = RunnerEngine::new(ExecuteRequest { 
+            id: "".to_string(),
+            files: vec![], 
+            steps: vec![] 
+        }).run_one("echo -n 'This is stdout' && echo -n 'This is stderr' >&2 && exit 1");   
+
+        assert!(res.is_ok());
+
+        let code_return = res.unwrap();
+
+        assert_eq!(code_return.stdout, "This is stdout");
+        assert_eq!(code_return.stderr, "This is stderr");
+        assert_eq!(code_return.exit_code, 1);
+    }
+
     /// Test the creation of a file
     #[test]
     fn workload_runs_correctly() {
         let files: Vec<FileModel> = Vec::new();
-        let mut steps: Vec<ExecuteRequestStep> = Vec::new();
-        let step = ExecuteRequestStep {
-            command: "echo 'This is stdout' && echo 'This is stderr' >&2".to_string(),
-            enable_output: true,
-        };
-        steps.push(step);
+        let steps: Vec<ExecuteRequestStep> = vec![
+            ExecuteRequestStep {
+                command: "echo 'This is stdout' && echo 'This is stderr' >&2".to_string(),
+                enable_output: true,
+            },
+            ExecuteRequestStep {
+                command: "echo 'This is stdout' && echo 'This is stderr' >&2 && exit 1".to_string(),
+                enable_output: false,
+            },
+        ];
+
         let request_data = ExecuteRequest {
             id: "4bf68974-c315-4c41-aee2-3dc2920e76e9".to_string(),
             files,
@@ -246,6 +268,12 @@ mod tests {
         assert_eq!(res.steps[0].exit_code, 0);
         assert_eq!(res.steps[0].stderr, "This is stderr\n");
         assert_eq!(res.steps[0].stdout, "This is stdout\n");
+
+        println!("{:?}", res.steps[1]);
+        assert_eq!(res.steps[1].exit_code, 1);
+        assert_eq!(res.steps[1].stderr, "This is stderr\n");
+        assert!(res.steps[1].stdout.is_empty());
+        
         assert_eq!(res.id, "4bf68974-c315-4c41-aee2-3dc2920e76e9");
     }
 
