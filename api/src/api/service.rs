@@ -1,7 +1,8 @@
 use crate::{
     config::{LambdoConfig, LambdoLanguageConfig},
-    vm_manager::grpc_definitions::{
-        ExecuteRequest, ExecuteRequestStep, ExecuteResponse, FileModel,
+    vm_manager::{
+        grpc_definitions::{ExecuteRequest, ExecuteRequestStep, ExecuteResponse, FileModel},
+        VMManagerTrait,
     },
     vm_manager::{state::LambdoStateRef, Error, VMManager},
 };
@@ -12,21 +13,27 @@ use crate::model::RunRequest;
 
 pub struct LambdoApiService {
     pub config: LambdoConfig,
-    pub vm_manager: VMManager,
+    pub vm_manager: Box<dyn VMManagerTrait>,
 }
 
 impl LambdoApiService {
     pub async fn new(config: LambdoConfig) -> Result<Self, Error> {
         let state = crate::vm_manager::state::LambdoState::new(config.clone());
         let vm_manager =
-            VMManager::new(std::sync::Arc::new(tokio::sync::Mutex::new(state))).await?;
-        Ok(LambdoApiService { config, vm_manager })
+            VMManager::from_state(std::sync::Arc::new(tokio::sync::Mutex::new(state))).await?;
+        Ok(LambdoApiService {
+            config,
+            vm_manager: Box::new(vm_manager),
+        })
     }
 
     pub async fn new_with_state(state: LambdoStateRef) -> Result<Self, Error> {
         let config = state.lock().await.config.clone();
-        let vm_manager = VMManager::new(state).await?;
-        Ok(LambdoApiService { config, vm_manager })
+        let vm_manager = VMManager::from_state(state).await?;
+        Ok(LambdoApiService {
+            config,
+            vm_manager: Box::new(vm_manager),
+        })
     }
 
     pub async fn run_code(&self, request: RunRequest) -> Result<ExecuteResponse, Error> {
@@ -203,9 +210,9 @@ mod test {
         let config = generate_lambdo_test_config();
         let service = LambdoApiService {
             config: config.clone(),
-            vm_manager: VMManager {
+            vm_manager: Box::new(VMManager {
                 state: Arc::new(Mutex::new(LambdoState::new(config))),
-            },
+            }),
         };
 
         let language = "NODE".to_string();
