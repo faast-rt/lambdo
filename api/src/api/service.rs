@@ -102,6 +102,7 @@ impl LambdoApiService {
 mod test {
     use std::sync::Arc;
 
+    use mockall::predicate;
     use tokio::sync::Mutex;
 
     use super::LambdoApiService;
@@ -110,7 +111,12 @@ mod test {
             LambdoAgentConfig, LambdoApiConfig, LambdoConfig, LambdoLanguageConfig,
             LambdoLanguageStepConfig, LambdoLanguageStepOutputConfig, LambdoVMMConfig,
         },
-        vm_manager::{state::LambdoState, VMManager},
+        model::{LanguageSettings, RunRequest},
+        vm_manager::{
+            grpc_definitions::{ExecuteRequest, ExecuteResponse, ExecuteResponseStep, FileModel},
+            state::LambdoState,
+            MockVMManagerTrait, VMManager,
+        },
     };
 
     fn generate_lambdo_test_config() -> LambdoConfig {
@@ -220,5 +226,75 @@ mod test {
 
         assert_eq!(language_settings.name, language);
         assert_eq!(language_settings.steps[0].name, Some("step 1".to_string()));
+    }
+
+    #[tokio::test]
+    async fn test_run_code() {
+        let config = generate_lambdo_test_config();
+
+        let language = "NODE".to_string();
+        let code = vec![FileModel {
+            filename: "index.js".to_string(),
+            content: "console.log('hello world')".to_string(),
+        }];
+        let input = "hello".to_string();
+
+        let request = RunRequest {
+            version: "1.0".to_string(),
+            language: language.clone(),
+            code,
+            input,
+        };
+
+        let expected_language_settings = config.languages[0].clone();
+        assert_eq!(expected_language_settings.name, language.clone());
+
+        let expected_response = ExecuteResponse {
+            id: "test".to_string(),
+            steps: vec![
+                ExecuteResponseStep {
+                    command: "echo index.js".to_string(),
+                    stdout: "index.js\n".to_string(),
+                    stderr: "".to_string(),
+                    exit_code: 0,
+                },
+                ExecuteResponseStep {
+                    command: "echo hello".to_string(),
+                    stdout: "hello\n".to_string(),
+                    stderr: "".to_string(),
+                    exit_code: 0,
+                },
+                ExecuteResponseStep {
+                    command: "cat index.js > index.js".to_string(),
+                    stdout: "".to_string(),
+                    stderr: "".to_string(),
+                    exit_code: 0,
+                },
+            ],
+        };
+
+        let response = expected_response.clone();
+        let mut mock_vm_manager = MockVMManagerTrait::new();
+        mock_vm_manager
+            .expect_run_code()
+            .with(
+                predicate::function(|req: &ExecuteRequest| {
+                    req.files[0].filename == "index.js" && req.steps[0].command == "echo index.js"
+                }),
+                predicate::function(move |lang: &LanguageSettings| {
+                    lang.name == language && lang.version == expected_language_settings.version
+                }),
+            )
+            .times(1)
+            .returning(move |_, _| Ok(response.clone()));
+
+        let service = LambdoApiService {
+            config: config.clone(),
+            vm_manager: Box::new(mock_vm_manager),
+        };
+
+        let response = service.run_code(request).await.unwrap();
+
+        assert_eq!(response, expected_response);
     }
 }
