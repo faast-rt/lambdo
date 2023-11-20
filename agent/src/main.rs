@@ -1,3 +1,9 @@
+//! The agent runs inside the MicroVM and is responsible for running the
+//! user's code and sending the result back to the server.
+//! It is packaged with other dependencies in an initramfs image using the initramfs tool.
+//! 
+//! The communication between the agent and the server is done using gRPC.
+
 use agent_lib::{
     api::{
         grpc_definitions::lambdo_agent_service_server::LambdoAgentServiceServer,
