@@ -20,6 +20,7 @@ struct ManifestResponse {
     fsLayers: Vec<LayerMetadata>,
 }
 
+/// A container registry (e.g. docker hub)
 pub struct Registry {
     url: String,
     auth_url: String,

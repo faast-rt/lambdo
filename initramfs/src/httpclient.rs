@@ -1,6 +1,7 @@
 use anyhow::{anyhow, Result};
 use reqwest::{Client, Response};
 
+/// Wrapper around reqwest to run a GET request with bearer auth
 pub async fn run_get_request(url: &str, token: Option<&str>) -> Result<Response> {
     let res = match token {
         Some(token) => Client::new().get(url).bearer_auth(token),

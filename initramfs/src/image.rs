@@ -40,6 +40,7 @@ pub struct Layer {
     pub content: Cursor<Bytes>,
 }
 
+/// Represents a container image
 pub struct Image {
     name: String,
     tag: String,
