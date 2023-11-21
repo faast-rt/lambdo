@@ -52,7 +52,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let args = Args::parse();
     debug!("Running cli with arguments : {:?}", args);
 
-    let registry = Registry::new(&args.registry_url, &args.auth_url);
+    let mut registry = Registry::new(&args.registry_url, &args.auth_url);
 
     info!("Downloading image {}", &args.image);
     let image = registry.get_image(&args.image).await?;
