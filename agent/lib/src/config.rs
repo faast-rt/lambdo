@@ -15,6 +15,10 @@ const fn default_local_port() -> u16 {
     0
 }
 
+fn default_workspace_path() -> String {
+    std::env::temp_dir().to_str().unwrap().to_string()
+}
+
 #[derive(Error, Debug)]
 pub enum AgentConfigError {
     #[error("cannot load config file")]
@@ -37,6 +41,9 @@ pub struct AgentConfig {
     /// The gRPC configuration
     #[serde(default = "default_grpc")]
     pub grpc: GRPCConfig,
+    /// The workspace where the agent will store the files of Requests and their resulting files
+    #[serde(default = "default_workspace_path")]
+    pub workspace_path: String,
 }
 
 #[derive(Serialize, Deserialize, PartialEq, Debug)]

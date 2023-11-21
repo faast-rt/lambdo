@@ -25,28 +25,12 @@ impl RunnerEngine {
     /// # Arguments
     ///
     /// * `request_message` - The request message
-    ///
-    /// # Returns
-    ///
-    /// * `Self` - The new instance of RunnerEngine
-    pub fn new(request_message: ExecuteRequest) -> Self {
-        Self {
-            request_message,
-            root_path: std::env::temp_dir(),
-        }
-    }
-
-    /// Create a new instance of RunnerEngine that uses another root path than /tmp
-    ///
-    /// # Arguments
-    ///
-    /// * `request_message` - The request message
     /// * `root_path` - The root path of the workspace
     ///
     /// # Returns
     ///
     /// * `Self` - The new instance of RunnerEngine
-    pub fn new_with_path(request_message: ExecuteRequest, root_path: &str) -> Self {
+    pub fn new(request_message: ExecuteRequest, root_path: &str) -> Self {
         Self {
             request_message,
             root_path: PathBuf::from(root_path),
@@ -217,13 +201,15 @@ mod tests {
     use std::fs::File;
     use std::io::Read;
 
+    const DEFAULT_WORKSPACE_PATH: &str = "/tmp";
+
     #[test]
     fn run_one_works_with_ouputs_and_code() {
         let res = RunnerEngine::new(ExecuteRequest {
             id: "".to_string(),
             files: vec![],
             steps: vec![],
-        })
+        }, DEFAULT_WORKSPACE_PATH)
         .run_one("echo -n 'This is stdout' && echo -n 'This is stderr' >&2 && exit 1");
 
         assert!(res.is_ok());
@@ -256,7 +242,7 @@ mod tests {
             steps,
         };
 
-        let mut api = RunnerEngine::new(request_data);
+        let mut api = RunnerEngine::new(request_data, DEFAULT_WORKSPACE_PATH);
 
         let res = api.run().unwrap();
 
@@ -291,7 +277,7 @@ mod tests {
             steps,
         };
 
-        RunnerEngine::new_with_path(request_data, path.as_os_str().to_str().unwrap())
+        RunnerEngine::new(request_data, path.as_os_str().to_str().unwrap())
             .create_workspace()
             .unwrap();
 
