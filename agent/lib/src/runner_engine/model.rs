@@ -1,10 +1,4 @@
-use anyhow::Result;
-use std::{
-    fs::File,
-    io::{Read, Write},
-    path::Path,
-    path::PathBuf,
-};
+use std::path::PathBuf;
 
 use serde::{Deserialize, Serialize};
 
@@ -53,34 +47,5 @@ impl CodeReturn {
             stderr,
             exit_code,
         }
-    }
-}
-
-/// A trait responsible for CRU operations on files and dir
-/// Mainly used in tests to mock file operations
-trait FileHandler: Read + Write {
-    fn create<P: AsRef<Path>>(path: P) -> Result<Self>
-    where
-        Self: Sized;
-    fn read<P: AsRef<Path>>(path: P) -> Result<Self>
-    where
-        Self: Sized;
-}
-
-impl FileHandler for File {
-    fn create<P: AsRef<Path>>(path: P) -> Result<Self>
-    where
-        Self: Sized,
-    {
-        let file = File::create(path)?;
-        Ok(file)
-    }
-
-    fn read<P: AsRef<Path>>(path: P) -> Result<Self>
-    where
-        Self: Sized,
-    {
-        let file = File::open(path)?;
-        Ok(file)
     }
 }
