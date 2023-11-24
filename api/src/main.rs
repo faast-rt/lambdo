@@ -9,7 +9,7 @@ use config::LambdoConfig;
 use thiserror::Error;
 
 use crate::{
-    api::{run, service::LambdoApiService},
+    api::{post_run_route, service::LambdoApiService},
     vm_manager::grpc_definitions::lambdo_api_service_server::LambdoApiServiceServer,
     vm_manager::state::LambdoState,
     vm_manager::VMListener,
@@ -87,8 +87,12 @@ async fn main() -> std::io::Result<()> {
     let http_port = config.api.web_port;
     let app_state = web::Data::new(api_service);
     info!("Starting web server on {}:{}", http_host, http_port);
-    HttpServer::new(move || App::new().app_data(app_state.clone()).service(run))
-        .bind((http_host.clone(), http_port))?
-        .run()
-        .await
+    HttpServer::new(move || {
+        App::new()
+            .app_data(app_state.clone())
+            .service(post_run_route)
+    })
+    .bind((http_host.clone(), http_port))?
+    .run()
+    .await
 }
