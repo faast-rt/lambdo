@@ -7,9 +7,16 @@ use crate::{
     vm_manager::{state::LambdoStateRef, Error, VMManager},
 };
 use log::{debug, trace};
+use mockall::automock;
 use uuid::Uuid;
 
 use crate::model::RunRequest;
+
+#[automock]
+#[async_trait::async_trait]
+pub trait LambdoApiServiceTrait: Send + Sync {
+    async fn run_code(&self, request: RunRequest) -> Result<ExecuteResponse, Error>;
+}
 
 pub struct LambdoApiService {
     pub config: LambdoConfig,
@@ -34,38 +41,6 @@ impl LambdoApiService {
             config,
             vm_manager: Box::new(vm_manager),
         })
-    }
-
-    pub async fn run_code(&self, request: RunRequest) -> Result<ExecuteResponse, Error> {
-        let entrypoint = request.code[0].filename.clone();
-
-        let language_settings = self.find_language(&request.language).unwrap();
-        let steps = Self::generate_steps(&language_settings, &entrypoint);
-        let file = FileModel {
-            filename: entrypoint.to_string(),
-            content: request.code[0].content.clone(),
-        };
-        let input_filename = "input.input";
-
-        let input = FileModel {
-            filename: input_filename.to_string(),
-            content: request.input.clone(),
-        };
-
-        let request_data = ExecuteRequest {
-            id: Uuid::new_v4().to_string(),
-            steps,
-            files: vec![file, input],
-        };
-        trace!("Request message to VMM: {:?}", request_data);
-
-        let response = self
-            .vm_manager
-            .run_code(request_data, language_settings.into())
-            .await;
-        debug!("Response from VMM: {:?}", response);
-
-        response
     }
 
     fn find_language(
@@ -98,6 +73,41 @@ impl LambdoApiService {
     }
 }
 
+#[async_trait::async_trait]
+impl LambdoApiServiceTrait for LambdoApiService {
+    async fn run_code(&self, request: RunRequest) -> Result<ExecuteResponse, Error> {
+        let entrypoint = request.code[0].filename.clone();
+
+        let language_settings = self.find_language(&request.language).unwrap();
+        let steps = Self::generate_steps(&language_settings, &entrypoint);
+        let file = FileModel {
+            filename: entrypoint.to_string(),
+            content: request.code[0].content.clone(),
+        };
+        let input_filename = "input.input";
+
+        let input = FileModel {
+            filename: input_filename.to_string(),
+            content: request.input.clone(),
+        };
+
+        let request_data = ExecuteRequest {
+            id: Uuid::new_v4().to_string(),
+            steps,
+            files: vec![file, input],
+        };
+        trace!("Request message to VMM: {:?}", request_data);
+
+        let response = self
+            .vm_manager
+            .run_code(request_data, language_settings.into())
+            .await;
+        debug!("Response from VMM: {:?}", response);
+
+        response
+    }
+}
+
 #[cfg(test)]
 mod test {
     use std::sync::Arc;
@@ -107,6 +117,7 @@ mod test {
 
     use super::LambdoApiService;
     use crate::{
+        api::service::LambdoApiServiceTrait,
         config::{
             LambdoAgentConfig, LambdoApiConfig, LambdoConfig, LambdoLanguageConfig,
             LambdoLanguageStepConfig, LambdoLanguageStepOutputConfig, LambdoVMMConfig,
