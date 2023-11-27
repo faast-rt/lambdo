@@ -7,14 +7,15 @@ use crate::api::grpc_definitions::{register_response::Response, RegisterRequest}
 
 use super::{grpc_definitions::{
     lambdo_api_service_client::LambdoApiServiceClient, Code, StatusMessage,
-}, ClientTrait};
+}, ClientTrait, SelfCreatingClientTrait};
 
 pub struct Client {
     client: LambdoApiServiceClient<tonic::transport::Channel>,
 }
 
-impl Client {
-    pub async fn new(gprc_host: IpAddr, port: u16) -> Self {
+#[tonic::async_trait]
+impl SelfCreatingClientTrait for Client {
+    async fn new(gprc_host: IpAddr, port: u16) -> Self {
         info!("Connecting to gRPC server at {}:{}", gprc_host, port);
 
         let mut counter = 0;

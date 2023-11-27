@@ -1,7 +1,7 @@
 use agent_lib::{
     api::{
         grpc_definitions::lambdo_agent_service_server::LambdoAgentServiceServer,
-        server::LambdoAgentServer,
+        server::LambdoAgentServer, client::Client,
     },
     config::AgentConfig,
 };
@@ -57,7 +57,7 @@ async fn main() -> Result<()> {
 
     tonic::transport::Server::builder()
         .add_service(LambdoAgentServiceServer::new(
-            LambdoAgentServer::new(config).await,
+            LambdoAgentServer::new::<Client>(config).await,
         ))
         .serve_with_incoming(tcp_stream)
         .await

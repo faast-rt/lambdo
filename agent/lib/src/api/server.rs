@@ -7,21 +7,20 @@ use tonic::{Request, Response, Status};
 use crate::{config::AgentConfig, runner_engine, api::ClientTrait};
 
 use super::{
-    client::Client,
     grpc_definitions::{
         lambdo_agent_service_server::LambdoAgentService, Empty, ExecuteRequest, ExecuteResponse,
         StatusMessage,
-    },
+    }, SelfCreatingClientTrait,
 };
 
 pub struct LambdoAgentServer {
     pub config: AgentConfig,
-    pub client: Arc<Mutex<Client>>,
+    pub client: Arc<Mutex<Box<dyn ClientTrait>>>,
     pub id: String,
 }
 
 impl LambdoAgentServer {
-    pub async fn new(config: AgentConfig) -> Self {
+    pub async fn new<C: ClientTrait + SelfCreatingClientTrait + 'static>(config: AgentConfig) -> Self {
         let grpc_remote_host = IpAddr::from_str(&config.grpc.remote_host).unwrap_or_else(|e| {
             error!("Invalid IP address: {}", config.grpc.remote_host);
             panic!("{}", e.to_string())
@@ -29,7 +28,7 @@ impl LambdoAgentServer {
         trace!("gRPC remote host: {}", grpc_remote_host);
 
         trace!("Creating gRPC client..");
-        let mut client = Client::new(grpc_remote_host, config.grpc.remote_port).await;
+        let mut client = C::new(grpc_remote_host, config.grpc.remote_port).await;
 
         trace!("Registering to gRPC server..");
         let id = {
@@ -63,7 +62,7 @@ impl LambdoAgentServer {
 
         Self {
             config,
-            client: Arc::new(Mutex::new(client)),
+            client: Arc::new(Mutex::new(Box::new(client))),
             id,
         }
     }
@@ -120,6 +119,33 @@ impl LambdoAgentService for LambdoAgentServer {
                     });
                 Err(Status::internal("Failed to run request"))
             }
+        }
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use crate::api::{ClientTrait, SelfCreatingClientTrait};
+    use anyhow::Result;
+    use super::super::grpc_definitions::Code;
+
+    struct MockClient;
+
+    #[tonic::async_trait]
+    impl ClientTrait for MockClient {
+        async fn register(&mut self, _local_port: u16) -> Result<String> {
+            Ok("test".to_string())
+        }
+
+        async fn status(&mut self, _id: String, _code: Code) -> Result<()>{
+            Ok(())
+        }
+    }
+
+    #[tonic::async_trait]
+    impl SelfCreatingClientTrait for MockClient {
+        async fn new(_grpc_host: std::net::IpAddr, _port: u16) -> Self {
+            MockClient
         }
     }
 }
