@@ -4,7 +4,7 @@ use log::{debug, error, info, trace};
 use tokio::sync::Mutex;
 use tonic::{Request, Response, Status};
 
-use crate::{config::AgentConfig, runner_engine};
+use crate::{config::AgentConfig, runner_engine, api::ClientTrait};
 
 use super::{
     client::Client,
@@ -38,7 +38,7 @@ impl LambdoAgentServer {
                 match client.register(config.grpc.local_port).await {
                     Ok(id) => break id,
                     Err(e) => {
-                        error!("Failed to register to gRPC server, {} try: {}", counter, e);
+                        error!("Failed to rese provide us with your discord handle, after joining our servergister to gRPC server, {} try: {}", counter, e);
                         counter += 1;
                         if counter >= 10 {
                             panic!("Failed to register to gRPC server");
