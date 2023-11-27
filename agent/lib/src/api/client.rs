@@ -5,9 +5,10 @@ use log::{error, info, trace};
 
 use crate::api::grpc_definitions::{register_response::Response, RegisterRequest};
 
-use super::{grpc_definitions::{
-    lambdo_api_service_client::LambdoApiServiceClient, Code, StatusMessage,
-}, ClientTrait, SelfCreatingClientTrait};
+use super::{
+    grpc_definitions::{lambdo_api_service_client::LambdoApiServiceClient, Code, StatusMessage},
+    ClientTrait, SelfCreatingClientTrait,
+};
 
 pub struct Client {
     client: LambdoApiServiceClient<tonic::transport::Channel>,

@@ -4,13 +4,14 @@ use log::{debug, error, info, trace};
 use tokio::sync::Mutex;
 use tonic::{Request, Response, Status};
 
-use crate::{config::AgentConfig, runner_engine, api::ClientTrait};
+use crate::{api::ClientTrait, config::AgentConfig, runner_engine};
 
 use super::{
     grpc_definitions::{
         lambdo_agent_service_server::LambdoAgentService, Empty, ExecuteRequest, ExecuteResponse,
         StatusMessage,
-    }, SelfCreatingClientTrait,
+    },
+    SelfCreatingClientTrait,
 };
 
 pub struct LambdoAgentServer {
@@ -20,7 +21,9 @@ pub struct LambdoAgentServer {
 }
 
 impl LambdoAgentServer {
-    pub async fn new<C: ClientTrait + SelfCreatingClientTrait + 'static>(config: AgentConfig) -> Self {
+    pub async fn new<C: ClientTrait + SelfCreatingClientTrait + 'static>(
+        config: AgentConfig,
+    ) -> Self {
         let grpc_remote_host = IpAddr::from_str(&config.grpc.remote_host).unwrap_or_else(|e| {
             error!("Invalid IP address: {}", config.grpc.remote_host);
             panic!("{}", e.to_string())
@@ -125,9 +128,20 @@ impl LambdoAgentService for LambdoAgentServer {
 
 #[cfg(test)]
 mod test {
-    use crate::api::{ClientTrait, SelfCreatingClientTrait};
-    use anyhow::Result;
     use super::super::grpc_definitions::Code;
+    use crate::{
+        api::{
+            grpc_definitions::{
+                lambdo_agent_service_server::LambdoAgentService, Empty, ExecuteRequest,
+                ExecuteRequestStep,
+            },
+            server::LambdoAgentServer,
+            ClientTrait, SelfCreatingClientTrait,
+        },
+        config::{AgentConfig, GRPCConfig},
+    };
+    use anyhow::Result;
+    use tonic::Request;
 
     struct MockClient;
 
@@ -137,7 +151,7 @@ mod test {
             Ok("test".to_string())
         }
 
-        async fn status(&mut self, _id: String, _code: Code) -> Result<()>{
+        async fn status(&mut self, _id: String, _code: Code) -> Result<()> {
             Ok(())
         }
     }
@@ -147,5 +161,70 @@ mod test {
         async fn new(_grpc_host: std::net::IpAddr, _port: u16) -> Self {
             MockClient
         }
+    }
+
+    #[tokio::test]
+    async fn status_unimplemented() {
+        let config = AgentConfig {
+            apiVersion: "lambdo.io/v1alpha1".to_string(),
+            kind: "AgentConfig".to_string(),
+            grpc: GRPCConfig {
+                remote_port: 50051,
+                remote_host: "127.0.0.1".to_string(),
+                local_host: "127.0.0.1".to_string(),
+                local_port: 50051,
+            },
+            workspace_path: tempfile::tempdir()
+                .unwrap()
+                .into_path()
+                .to_str()
+                .unwrap()
+                .to_string(),
+        };
+
+        let server = LambdoAgentServer::new::<MockClient>(config).await;
+        let status = server.status(Request::new(Empty {})).await;
+
+        assert!(status.is_err());
+    }
+
+    #[tokio::test]
+    async fn execute_works() {
+        let config = AgentConfig {
+            apiVersion: "lambdo.io/v1alpha1".to_string(),
+            kind: "AgentConfig".to_string(),
+            grpc: GRPCConfig {
+                remote_port: 50051,
+                remote_host: "127.0.0.1".to_string(),
+                local_host: "127.0.0.1".to_string(),
+                local_port: 50051,
+            },
+            workspace_path: tempfile::tempdir()
+                .unwrap()
+                .into_path()
+                .to_str()
+                .unwrap()
+                .to_string(),
+        };
+
+        let server = LambdoAgentServer::new::<MockClient>(config).await;
+        let execute = server
+            .execute(Request::new(ExecuteRequest {
+                id: "test".to_string(),
+                files: vec![],
+                steps: vec![ExecuteRequestStep {
+                    command: "echo -n 'This is stdout' && echo -n 'This is stderr' >&2 && exit 1"
+                        .to_string(),
+                    enable_output: true,
+                }],
+            }))
+            .await;
+
+        assert!(execute.is_ok());
+
+        let execution_recap = execute.unwrap().into_inner();
+
+        assert_eq!(execution_recap.clone().steps[0].stdout, "This is stdout");
+        assert_eq!(execution_recap.steps[0].stderr, "This is stderr");
     }
 }

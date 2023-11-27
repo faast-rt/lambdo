@@ -1,7 +1,7 @@
 use agent_lib::{
     api::{
-        grpc_definitions::lambdo_agent_service_server::LambdoAgentServiceServer,
-        server::LambdoAgentServer, client::Client,
+        client::Client, grpc_definitions::lambdo_agent_service_server::LambdoAgentServiceServer,
+        server::LambdoAgentServer,
     },
     config::AgentConfig,
 };
