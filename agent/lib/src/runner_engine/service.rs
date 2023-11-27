@@ -201,15 +201,18 @@ mod tests {
     use std::fs::File;
     use std::io::Read;
 
-    const DEFAULT_WORKSPACE_PATH: &str = "/tmp";
+    use tempfile::tempdir;
 
     #[test]
     fn run_one_works_with_ouputs_and_code() {
-        let res = RunnerEngine::new(ExecuteRequest {
-            id: "".to_string(),
-            files: vec![],
-            steps: vec![],
-        }, DEFAULT_WORKSPACE_PATH)
+        let res = RunnerEngine::new(
+            ExecuteRequest {
+                id: "".to_string(),
+                files: vec![],
+                steps: vec![],
+            },
+            tempdir().unwrap().path().to_str().unwrap(),
+        )
         .run_one("echo -n 'This is stdout' && echo -n 'This is stderr' >&2 && exit 1");
 
         assert!(res.is_ok());
@@ -224,6 +227,10 @@ mod tests {
     /// Test the creation of a file
     #[test]
     fn workload_runs_correctly() {
+        let tempdir = tempfile::tempdir();
+        let temp_dir = &tempdir.unwrap();
+        let path = temp_dir.path();
+
         let files: Vec<FileModel> = Vec::new();
         let steps: Vec<ExecuteRequestStep> = vec![
             ExecuteRequestStep {
@@ -242,7 +249,7 @@ mod tests {
             steps,
         };
 
-        let mut api = RunnerEngine::new(request_data, DEFAULT_WORKSPACE_PATH);
+        let mut api = RunnerEngine::new(request_data, path.as_os_str().to_str().unwrap());
 
         let res = api.run().unwrap();
 

@@ -84,10 +84,8 @@ impl LambdoAgentService for LambdoAgentServer {
         let request = request.into_inner();
         debug!("Received request: {:?}", request);
 
-        let mut runner_engine = runner_engine::service::RunnerEngine::new(
-            request,
-            &self.config.workspace_path
-        );
+        let mut runner_engine =
+            runner_engine::service::RunnerEngine::new(request, &self.config.workspace_path);
         let mut self_client = self.client.lock().await;
 
         if let Err(e) = runner_engine.create_workspace() {
