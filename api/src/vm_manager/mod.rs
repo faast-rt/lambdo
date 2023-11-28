@@ -1,4 +1,5 @@
 pub mod state;
+use mockall::automock;
 use network_interface::{NetworkInterface, NetworkInterfaceConfig};
 use tokio::process::Command;
 
@@ -21,12 +22,27 @@ use self::{
 
 mod vmm;
 
+#[automock]
+#[async_trait::async_trait]
+pub trait VMManagerTrait: Sync + Send {
+    async fn from_state(state: LambdoStateRef) -> Result<Self, Error>
+    where
+        Self: Sized;
+
+    async fn run_code(
+        &self,
+        request: ExecuteRequest,
+        language_settings: LanguageSettings,
+    ) -> Result<ExecuteResponse, Error>;
+}
+
 pub struct VMManager {
     pub state: LambdoStateRef,
 }
 
-impl VMManager {
-    pub async fn new(state: LambdoStateRef) -> Result<Self, Error> {
+#[async_trait::async_trait]
+impl VMManagerTrait for VMManager {
+    async fn from_state(state: LambdoStateRef) -> Result<Self, Error> {
         let mut vmm_manager = VMManager { state };
 
         {
@@ -51,7 +67,7 @@ impl VMManager {
         Ok(vmm_manager)
     }
 
-    pub async fn run_code(
+    async fn run_code(
         &self,
         request: ExecuteRequest,
         language_settings: LanguageSettings,
@@ -112,7 +128,9 @@ impl VMManager {
 
         Ok(response)
     }
+}
 
+impl VMManager {
     pub async fn event_listener(&mut self) {
         let mut receiver = self.state.lock().await.channel.1.resubscribe();
         let state = self.state.clone();
