@@ -1,3 +1,14 @@
+//! This is a tool to transform a container image into an initramfs image.
+//! It will download the image from a container registry, extract it and
+//! write it to disk.
+//! The initramfs image will contain the init binary/script and the agent 
+//! binary as well as the agent configuration file.
+//! The init binary will be the entrypoint of the initramfs image and will
+//! start the agent binary.
+//!
+//! This image can then be used as an initramfs image for a linux kernel
+//! in the lambdo runtime.
+
 use std::fs::File;
 
 use anyhow::anyhow;
