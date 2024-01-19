@@ -10,26 +10,31 @@ use std::{
     process::Command,
 };
 
-/// The path where the workspace will be created
-const WORKSPACE_PATH: &str = "/tmp";
-
-/// The RunnerEngine API
+/// The RunnerEngine API, responsible for running a request message
+#[derive(Clone, Debug)]
 pub struct RunnerEngine {
+    /// the request message
     pub request_message: ExecuteRequest,
+    /// The root path of the workspace
+    pub root_path: PathBuf,
 }
 
 impl RunnerEngine {
-    /// Create a new instance of RunnerEngine
+    /// Create a new instance of RunnerEngine and set the root path to your system's temp folder/directory
     ///
     /// # Arguments
     ///
     /// * `request_message` - The request message
+    /// * `root_path` - The root path of the workspace
     ///
     /// # Returns
     ///
     /// * `Self` - The new instance of RunnerEngine
-    pub fn new(request_message: ExecuteRequest) -> Self {
-        Self { request_message }
+    pub fn new(request_message: ExecuteRequest, root_path: &str) -> Self {
+        Self {
+            request_message,
+            root_path: PathBuf::from(root_path),
+        }
     }
 
     /// Create the workspace for the code execution
@@ -42,14 +47,13 @@ impl RunnerEngine {
 
         // Create a vector of FileModel and a root path
         let mut file_models: Vec<FileModel> = Vec::new();
-        let root_path = PathBuf::from(WORKSPACE_PATH);
 
         self.request_message.files.iter().for_each(|file| {
             let mut file_path = PathBuf::from(&file.filename);
             file_path.pop();
 
             // Add `/tmp` before each path
-            file_path = root_path.join(file_path);
+            file_path = self.root_path.join(file_path);
 
             // Take the file name and add it to the vector of files
             let file_name = Path::file_name(Path::new(&file.filename));
@@ -169,7 +173,7 @@ impl RunnerEngine {
 
         let child_process = Command::new("/bin/sh")
             .args(["-c", command])
-            .current_dir(WORKSPACE_PATH)
+            .current_dir(self.root_path.clone())
             .output()
             .map_err(|e| anyhow!("Failed to spawn command : {}", e))?;
 
@@ -194,71 +198,83 @@ mod tests {
     use crate::api::grpc_definitions::{ExecuteRequestStep, FileModel};
 
     use super::*;
-    use rand::random;
     use std::fs::File;
     use std::io::Read;
 
-    /// Generate a random string
-    ///
-    /// # Arguments
-    ///
-    /// * `len` - The length of the string
-    ///
-    /// # Returns
-    ///
-    /// * `String` - The random string
-    fn native_rand_string(len: usize) -> String {
-        let chars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890";
-        let mut string = String::new();
+    use tempfile::tempdir;
 
-        for _ in 0..len {
-            string.push(
-                chars
-                    .chars()
-                    .nth(random::<usize>() % (chars.len() - 1))
-                    .unwrap(),
-            );
-        }
+    #[test]
+    fn run_one_works_with_ouputs_and_code() {
+        let res = RunnerEngine::new(
+            ExecuteRequest {
+                id: "".to_string(),
+                files: vec![],
+                steps: vec![],
+            },
+            tempdir().unwrap().path().to_str().unwrap(),
+        )
+        .run_one("echo -n 'This is stdout' && echo -n 'This is stderr' >&2 && exit 1");
 
-        string
+        assert!(res.is_ok());
+
+        let code_return = res.unwrap();
+
+        assert_eq!(code_return.stdout, "This is stdout");
+        assert_eq!(code_return.stderr, "This is stderr");
+        assert_eq!(code_return.exit_code, 1);
     }
 
     /// Test the creation of a file
     #[test]
     fn workload_runs_correctly() {
+        let tempdir = tempfile::tempdir();
+        let temp_dir = &tempdir.unwrap();
+        let path = temp_dir.path();
+
         let files: Vec<FileModel> = Vec::new();
-        let mut steps: Vec<ExecuteRequestStep> = Vec::new();
-        let step = ExecuteRequestStep {
-            command: "echo 'This is stdout' && echo 'This is stderr' >&2".to_string(),
-            enable_output: true,
-        };
-        steps.push(step);
+        let steps: Vec<ExecuteRequestStep> = vec![
+            ExecuteRequestStep {
+                command: "echo 'This is stdout' && echo 'This is stderr' >&2".to_string(),
+                enable_output: true,
+            },
+            ExecuteRequestStep {
+                command: "echo 'This is stdout' && echo 'This is stderr' >&2 && exit 1".to_string(),
+                enable_output: false,
+            },
+        ];
+
         let request_data = ExecuteRequest {
             id: "4bf68974-c315-4c41-aee2-3dc2920e76e9".to_string(),
             files,
             steps,
         };
 
-        let mut api = RunnerEngine::new(request_data);
+        let mut api = RunnerEngine::new(request_data, path.as_os_str().to_str().unwrap());
 
         let res = api.run().unwrap();
 
         assert_eq!(res.steps[0].exit_code, 0);
         assert_eq!(res.steps[0].stderr, "This is stderr\n");
         assert_eq!(res.steps[0].stdout, "This is stdout\n");
+
+        assert_eq!(res.steps[1].exit_code, 1);
+        assert_eq!(res.steps[1].stderr, "This is stderr\n");
+        assert!(res.steps[1].stdout.is_empty());
+
         assert_eq!(res.id, "4bf68974-c315-4c41-aee2-3dc2920e76e9");
     }
 
     /// Test the execution of a command with a workspace
     #[test]
     fn workspace_created_sucessfully() {
-        let mut base_dir = PathBuf::from(WORKSPACE_PATH);
-        base_dir.push(native_rand_string(20));
-        base_dir.push("main.sh");
-        let path = base_dir.into_os_string().into_string().unwrap();
+        let tempdir = tempfile::tempdir();
+        let temp_dir = &tempdir.unwrap();
+        let path = temp_dir.path();
+
+        let filename = path.join("main.sh").to_str().unwrap().to_string();
 
         let files: Vec<FileModel> = vec![FileModel {
-            filename: path.clone(),
+            filename: filename.clone(),
             content: "Hello World!".to_string(),
         }];
         let steps: Vec<ExecuteRequestStep> = Vec::new();
@@ -268,12 +284,14 @@ mod tests {
             steps,
         };
 
-        RunnerEngine::new(request_data).create_workspace().unwrap();
+        RunnerEngine::new(request_data, path.as_os_str().to_str().unwrap())
+            .create_workspace()
+            .unwrap();
 
         assert!(Path::new(&path).exists());
 
         //Check that the file contains the specified content
-        let mut file = File::open(&path).unwrap();
+        let mut file = File::open(filename).unwrap();
         let mut buffer = [0; 12];
         file.read_exact(&mut buffer[..]).unwrap();
 

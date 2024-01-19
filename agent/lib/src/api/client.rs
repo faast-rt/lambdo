@@ -5,16 +5,18 @@ use log::{error, info, trace};
 
 use crate::api::grpc_definitions::{register_response::Response, RegisterRequest};
 
-use super::grpc_definitions::{
-    lambdo_api_service_client::LambdoApiServiceClient, Code, StatusMessage,
+use super::{
+    grpc_definitions::{lambdo_api_service_client::LambdoApiServiceClient, Code, StatusMessage},
+    ClientTrait, SelfCreatingClientTrait,
 };
 
 pub struct Client {
     client: LambdoApiServiceClient<tonic::transport::Channel>,
 }
 
-impl Client {
-    pub async fn new(gprc_host: IpAddr, port: u16) -> Self {
+#[tonic::async_trait]
+impl SelfCreatingClientTrait for Client {
+    async fn new(gprc_host: IpAddr, port: u16) -> Self {
         info!("Connecting to gRPC server at {}:{}", gprc_host, port);
 
         let mut counter = 0;
@@ -34,8 +36,11 @@ impl Client {
 
         panic!("Failed to connect to gRPC server");
     }
+}
 
-    pub async fn register(&mut self, port: u16) -> Result<String> {
+#[tonic::async_trait]
+impl ClientTrait for Client {
+    async fn register(&mut self, port: u16) -> Result<String> {
         info!("Registering to lambdo..");
         let register_response = self
             .client
@@ -49,7 +54,7 @@ impl Client {
         }
     }
 
-    pub async fn status(&mut self, id: String, code: Code) -> Result<()> {
+    async fn status(&mut self, id: String, code: Code) -> Result<()> {
         self.client
             .status(StatusMessage {
                 id,

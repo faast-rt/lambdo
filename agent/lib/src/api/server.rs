@@ -4,24 +4,26 @@ use log::{debug, error, info, trace};
 use tokio::sync::Mutex;
 use tonic::{Request, Response, Status};
 
-use crate::{config::AgentConfig, runner_engine};
+use crate::{api::ClientTrait, config::AgentConfig, runner_engine};
 
 use super::{
-    client::Client,
     grpc_definitions::{
         lambdo_agent_service_server::LambdoAgentService, Empty, ExecuteRequest, ExecuteResponse,
         StatusMessage,
     },
+    SelfCreatingClientTrait,
 };
 
 pub struct LambdoAgentServer {
     pub config: AgentConfig,
-    pub client: Arc<Mutex<Client>>,
+    pub client: Arc<Mutex<Box<dyn ClientTrait>>>,
     pub id: String,
 }
 
 impl LambdoAgentServer {
-    pub async fn new(config: AgentConfig) -> Self {
+    pub async fn new<C: ClientTrait + SelfCreatingClientTrait + 'static>(
+        config: AgentConfig,
+    ) -> Self {
         let grpc_remote_host = IpAddr::from_str(&config.grpc.remote_host).unwrap_or_else(|e| {
             error!("Invalid IP address: {}", config.grpc.remote_host);
             panic!("{}", e.to_string())
@@ -29,7 +31,7 @@ impl LambdoAgentServer {
         trace!("gRPC remote host: {}", grpc_remote_host);
 
         trace!("Creating gRPC client..");
-        let mut client = Client::new(grpc_remote_host, config.grpc.remote_port).await;
+        let mut client = C::new(grpc_remote_host, config.grpc.remote_port).await;
 
         trace!("Registering to gRPC server..");
         let id = {
@@ -38,7 +40,7 @@ impl LambdoAgentServer {
                 match client.register(config.grpc.local_port).await {
                     Ok(id) => break id,
                     Err(e) => {
-                        error!("Failed to register to gRPC server, {} try: {}", counter, e);
+                        error!("Failed to rese provide us with your discord handle, after joining our servergister to gRPC server, {} try: {}", counter, e);
                         counter += 1;
                         if counter >= 10 {
                             panic!("Failed to register to gRPC server");
@@ -63,7 +65,7 @@ impl LambdoAgentServer {
 
         Self {
             config,
-            client: Arc::new(Mutex::new(client)),
+            client: Arc::new(Mutex::new(Box::new(client))),
             id,
         }
     }
@@ -84,7 +86,8 @@ impl LambdoAgentService for LambdoAgentServer {
         let request = request.into_inner();
         debug!("Received request: {:?}", request);
 
-        let mut runner_engine = runner_engine::service::RunnerEngine::new(request);
+        let mut runner_engine =
+            runner_engine::service::RunnerEngine::new(request, &self.config.workspace_path);
         let mut self_client = self.client.lock().await;
 
         if let Err(e) = runner_engine.create_workspace() {
@@ -120,5 +123,108 @@ impl LambdoAgentService for LambdoAgentServer {
                 Err(Status::internal("Failed to run request"))
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use super::super::grpc_definitions::Code;
+    use crate::{
+        api::{
+            grpc_definitions::{
+                lambdo_agent_service_server::LambdoAgentService, Empty, ExecuteRequest,
+                ExecuteRequestStep,
+            },
+            server::LambdoAgentServer,
+            ClientTrait, SelfCreatingClientTrait,
+        },
+        config::{AgentConfig, GRPCConfig},
+    };
+    use anyhow::Result;
+    use tonic::Request;
+
+    struct MockClient;
+
+    #[tonic::async_trait]
+    impl ClientTrait for MockClient {
+        async fn register(&mut self, _local_port: u16) -> Result<String> {
+            Ok("test".to_string())
+        }
+
+        async fn status(&mut self, _id: String, _code: Code) -> Result<()> {
+            Ok(())
+        }
+    }
+
+    #[tonic::async_trait]
+    impl SelfCreatingClientTrait for MockClient {
+        async fn new(_grpc_host: std::net::IpAddr, _port: u16) -> Self {
+            MockClient
+        }
+    }
+
+    #[tokio::test]
+    async fn status_unimplemented() {
+        let config = AgentConfig {
+            apiVersion: "lambdo.io/v1alpha1".to_string(),
+            kind: "AgentConfig".to_string(),
+            grpc: GRPCConfig {
+                remote_port: 50051,
+                remote_host: "127.0.0.1".to_string(),
+                local_host: "127.0.0.1".to_string(),
+                local_port: 50051,
+            },
+            workspace_path: tempfile::tempdir()
+                .unwrap()
+                .into_path()
+                .to_str()
+                .unwrap()
+                .to_string(),
+        };
+
+        let server = LambdoAgentServer::new::<MockClient>(config).await;
+        let status = server.status(Request::new(Empty {})).await;
+
+        assert!(status.is_err());
+    }
+
+    #[tokio::test]
+    async fn execute_works() {
+        let config = AgentConfig {
+            apiVersion: "lambdo.io/v1alpha1".to_string(),
+            kind: "AgentConfig".to_string(),
+            grpc: GRPCConfig {
+                remote_port: 50051,
+                remote_host: "127.0.0.1".to_string(),
+                local_host: "127.0.0.1".to_string(),
+                local_port: 50051,
+            },
+            workspace_path: tempfile::tempdir()
+                .unwrap()
+                .into_path()
+                .to_str()
+                .unwrap()
+                .to_string(),
+        };
+
+        let server = LambdoAgentServer::new::<MockClient>(config).await;
+        let execute = server
+            .execute(Request::new(ExecuteRequest {
+                id: "test".to_string(),
+                files: vec![],
+                steps: vec![ExecuteRequestStep {
+                    command: "echo -n 'This is stdout' && echo -n 'This is stderr' >&2 && exit 1"
+                        .to_string(),
+                    enable_output: true,
+                }],
+            }))
+            .await;
+
+        assert!(execute.is_ok());
+
+        let execution_recap = execute.unwrap().into_inner();
+
+        assert_eq!(execution_recap.clone().steps[0].stdout, "This is stdout");
+        assert_eq!(execution_recap.steps[0].stderr, "This is stderr");
     }
 }
